@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Quicksand', sans-serif;
+  background: #FFFBF7;
+  color: #1a1a1a;
+  font-weight: 500;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Petrona', Georgia, serif;
+}
