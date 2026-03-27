@@ -4,10 +4,11 @@ import type { Exercise } from '../lib/supabase';
 import ExerciseCard from '../components/ExerciseCard';
 import PlaylistItem from '../components/PlaylistItem';
 import TemplateModal from '../components/TemplateModal';
-import { Search, Download, Save, Trash2, Clock, ListChecks, X, Video, Loader2, CheckCircle2, XCircle, Play, FileText } from 'lucide-react';
+import { Search, Download, Save, Trash2, Clock, ListChecks, X, Video, Loader2, CheckCircle2, XCircle, Play, FileText, Code } from 'lucide-react';
 import VideoStoryboard from '../components/storyboard/VideoStoryboard';
 import { parseTemplate, mergeTemplateWithDb, generateTemplateText } from '../lib/templateParser';
 import type { TemplateMetadata } from '../lib/templateParser';
+import { generateMVCode } from '../lib/mvCodeGenerator';
 
 export default function Builder() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -34,6 +35,7 @@ export default function Builder() {
   const [templateText, setTemplateText] = useState('');
   const [templateData, setTemplateData] = useState<TemplateMetadata | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [mvCopySuccess, setMvCopySuccess] = useState(false);
 
   const codePrefixes = useMemo(() => {
     const prefixMap = new Map<string, number>();
@@ -136,6 +138,21 @@ export default function Builder() {
 
   function handleBuildAnother() { closeVideoModal(); setPlaylist([]); setRoutineName(''); }
 
+  function handleCopyMVCode() {
+    if (playlist.length === 0) return;
+    const mvCode = generateMVCode(playlist, routineName || 'Custom Routine', getTotalTime(), templateData);
+    navigator.clipboard.writeText(mvCode).then(() => {
+      setMvCopySuccess(true);
+      setTimeout(() => setMvCopySuccess(false), 2500);
+    }).catch(() => {
+      const b = new Blob([mvCode], { type: 'text/html' });
+      const u = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = u; a.download = (routineName || 'MV_Code').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '_mv.html';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
+    });
+  }
+
   if (loading) return (<div className="text-center py-20"><div className="animate-spin w-10 h-10 border-4 border-navy border-t-transparent rounded-full mx-auto mb-4"></div><p className="text-gray-500 font-semibold">Loading exercise library...</p></div>);
 
   return (
@@ -187,6 +204,7 @@ export default function Builder() {
               <button onClick={exportJSON} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border-2 border-teal text-teal hover:bg-teal/5 transition-all cursor-pointer bg-white min-h-[44px]"><Download className="w-4 h-4" /> Export JSON</button>
               <button onClick={handleSave} disabled={saving || !routineName.trim()} className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-2 min-h-[44px] ${!routineName.trim() ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-navy text-navy hover:bg-navy/5 bg-white'}`}><Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save to Library'}</button>
               <button onClick={exportTemplate} disabled={playlist.length === 0} className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-2 min-h-[44px] ${playlist.length === 0 ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-crimson text-crimson hover:bg-crimson/5 bg-white'}`}><FileText className="w-4 h-4" /> Export Template</button>
+              <button onClick={handleCopyMVCode} disabled={playlist.length === 0} className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-2 min-h-[44px] ${playlist.length === 0 ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-purple-700 text-purple-700 hover:bg-purple-50 bg-white'}`}><Code className="w-4 h-4" /> {mvCopySuccess ? 'Copied!' : 'Copy MV Code'}</button>
             </div>
           </>)}
         </div>
@@ -212,6 +230,7 @@ export default function Builder() {
                 <div className="space-y-2">
                   <button onClick={() => setShowVideoPlayer(!showVideoPlayer)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-navy border-2 border-navy hover:bg-navy/5 cursor-pointer bg-white min-h-[44px]"><Play className="w-5 h-5" /> {showVideoPlayer ? 'Hide' : 'Preview'}</button>
                   {videoOutputUrl && <button onClick={handleDownloadVideo} disabled={isDownloading} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg cursor-pointer border-none min-h-[44px] disabled:opacity-60">{isDownloading ? <><Loader2 className="w-5 h-5 animate-spin" /> Downloading...</> : <><Download className="w-5 h-5" /> Download MP4</>}</button>}
+                  <button onClick={handleCopyMVCode} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border-2 border-purple-700 text-purple-700 hover:bg-purple-50 cursor-pointer bg-white min-h-[44px]"><Code className="w-5 h-5" /> {mvCopySuccess ? 'Copied to Clipboard!' : 'Copy MV Code (Video + Tracker)'}</button>
                   <button onClick={handleBuildAnother} className="w-full py-2.5 rounded-xl font-bold text-sm text-gray-600 hover:text-navy cursor-pointer bg-transparent border-none min-h-[44px]">Build Another</button>
                 </div>
               </div>
