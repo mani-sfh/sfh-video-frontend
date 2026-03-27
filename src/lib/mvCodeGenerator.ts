@@ -266,7 +266,7 @@ export function generateMVCode(
 
   // Subtitle line (only if provided)
   const subtitleLine = subtitle
-    ? `\n    <p style="color: #444; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0; font-weight: 600; font-style: italic;">${esc(subtitle)}</p>`
+    ? `\n    <p style="color: #444; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0; font-weight: 600;">${esc(subtitle)}</p>`
     : '';
 
   const html = `<!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -292,19 +292,25 @@ export function generateMVCode(
 
   <!-- ──────────────────────────────────────── -->
   <!-- VIMEO VIDEO EMBED                        -->
-  <!-- Replace [VIMEO_URL] with your Vimeo      -->
-  <!-- player embed URL after uploading          -->
+  <!-- Replace the src below with your Vimeo    -->
+  <!-- player embed URL, e.g.:                  -->
+  <!-- https://player.vimeo.com/video/123456789 -->
   <!-- ──────────────────────────────────────── -->
-  <div style="margin-bottom: 24px;">
+  <div style="margin-bottom: 16px;">
     <div style="background: linear-gradient(135deg, #0C115B, #A61E51); color: white; padding: 10px 16px; border-radius: 12px 12px 0 0; text-align: center;">
-      <p style="margin: 0; font-size: 17px; font-weight: 700; font-family: 'Petrona', Georgia, serif;">Press Play and Follow Along</p>
+      <p style="margin: 0; font-size: 17px; font-weight: 700; font-family: 'Petrona', Georgia, serif;">Press Play</p>
     </div>
     <div style="position: relative; padding-bottom: 56.25%; height: 0; background: #000;">
-      <iframe src="[VIMEO_URL]" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
+      <iframe src="https://player.vimeo.com/video/YOUR_VIDEO_ID_HERE?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
     </div>
     <div style="background: #f5f5f5; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px; padding: 10px 16px; text-align: center;">
       <p style="margin: 0; font-size: 15px; color: #444; font-weight: 600;">Pause anytime you need. Your pace, your practice.</p>
     </div>
+  </div>
+
+  <!-- NOTE ABOUT VIDEO LENGTH -->
+  <div style="background: #e3f2fd; border-left: 4px solid #0d47a1; border-radius: 0 10px 10px 0; padding: 14px 16px; margin-bottom: 24px;">
+    <p style="margin: 0; font-size: 15px; color: #0d47a1; font-weight: 700; line-height: 1.6;">Follow-along videos are longer because they include video instructions for every exercise. Once you know the exercises, you can be done in under 10 minutes using the PDF tracker below.</p>
   </div>
 
   <!-- ──────────────────────────────────────── -->
