@@ -301,15 +301,12 @@ window.sfhVLOpen=function(mi){
     for(var i=0;i<sfhVLMods.length;i++){
       sfhVLSetMod(sfhVLMods[i],(sfhVLMods[i]===mi));
     }
-    var b=sfhVLGetEl('sfhVL-mod-'+mi);
-    if(b){
-      setTimeout(function(){
-        try{b.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}
-      },50);
-    }
-    if(window.parent&&window.parent!==window){
-      window.parent.postMessage({namespace:'sfh',type:'scroll-into-view'},'*');
-    }
+    setTimeout(function(){
+      try{
+        var b=sfhVLGetEl('sfhVL-mod-'+mi);
+        if(b){b.scrollIntoView({block:'start'});}
+      }catch(e){}
+    },50);
   }catch(e){}
   setTimeout(function(){sfhVLBusy=false;},150);
 };
