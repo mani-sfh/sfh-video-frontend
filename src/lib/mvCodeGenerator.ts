@@ -283,7 +283,7 @@ export function generateMVCode(
   <!-- ROUTINE VIDEO HEADER                     -->
   <!-- ──────────────────────────────────────── -->
   <div style="text-align: center; margin-bottom: 20px;">
-    <h2 style="font-family: 'Petrona', Georgia, serif; color: #0C115B; font-size: 26px; margin: 0 0 8px 0;">Follow-Along Video</h2>${subtitleLine}
+    <h2 style="font-family: 'Petrona', Georgia, serif; color: #0C115B; font-size: 26px; margin: 0 0 8px 0;">Press &amp; Play</h2>${subtitleLine}
     <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
       <span style="background: linear-gradient(135deg, #0C115B, #A61E51); color: white; padding: 8px 16px; border-radius: 20px; font-size: 15px; font-weight: 700;">${exerciseCount} Exercises</span>
       <span style="background: linear-gradient(135deg, #0C115B, #A61E51); color: white; padding: 8px 16px; border-radius: 20px; font-size: 15px; font-weight: 700;">${esc(duration)}</span>${levelBadge}${conditionTag}
@@ -298,7 +298,7 @@ export function generateMVCode(
   <!-- ──────────────────────────────────────── -->
   <div style="margin-bottom: 16px;">
     <div style="background: linear-gradient(135deg, #0C115B, #A61E51); color: white; padding: 10px 16px; border-radius: 12px 12px 0 0; text-align: center;">
-      <p style="margin: 0; font-size: 17px; font-weight: 700; font-family: 'Petrona', Georgia, serif;">Press Play</p>
+      <p style="margin: 0; font-size: 17px; font-weight: 700; font-family: 'Petrona', Georgia, serif;">Press Play &amp; Follow Along</p>
     </div>
     <div style="position: relative; padding-bottom: 56.25%; height: 0; background: #000;">
       <iframe src="https://player.vimeo.com/video/YOUR_VIDEO_ID_HERE?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
