@@ -3,6 +3,7 @@ import Header from './components/Header';
 import Builder from './pages/Builder';
 import SavedRoutines from './pages/SavedRoutines';
 import StoryboardPreview from './pages/StoryboardPreview';
+import LibraryBuilder from './pages/LibraryBuilder';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
             <Route path="/" element={<Builder />} />
             <Route path="/saved" element={<SavedRoutines />} />
             <Route path="/storyboard-preview" element={<StoryboardPreview />} />
+            <Route path="/library" element={<LibraryBuilder />} />
           </Routes>
         </main>
       </div>
