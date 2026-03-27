@@ -201,13 +201,13 @@ export default function Builder() {
               <div className="p-6">
                 <div className="bg-gradient-to-r from-navy to-crimson text-white p-4 rounded-t-xl -m-6 mb-6"><h2 className="text-xl font-bold m-0 font-petrona">Building Your Routine Video</h2></div>
                 <h3 className="text-lg font-bold text-crimson m-0 mb-2 font-petrona">{routineName || 'Custom Routine'}</h3>
-                <p className="text-sm text-gray-600 font-semibold mb-4">{playlist.length} exercises \u2022 ~{getTotalTime()} min</p>
+                <p className="text-sm text-gray-600 font-semibold mb-4">{playlist.length} exercises • ~{getTotalTime()} min</p>
                 <div className="mb-4"><div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-crimson transition-all duration-500 rounded-full" style={{ width: `${videoProgress}%` }}></div></div><p className="text-center text-sm font-bold text-navy mt-2">{videoProgress}%</p></div>
                 <div className="text-center"><div className="flex items-center justify-center gap-2 text-gray-500 mb-2"><Loader2 className="w-5 h-5 animate-spin text-crimson" /><p className="text-sm font-semibold">{videoCurrentStep || 'Processing...'}</p></div><p className="text-xs text-gray-400 font-semibold">This may take a few minutes...</p></div>
               </div>
             ) : videoJobStatus === 'completed' ? (
               <div className="p-6">
-                <div className="text-center mb-6"><CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-3" /><h2 className="text-2xl font-bold text-navy m-0 mb-2 font-petrona">Video Ready!</h2><h3 className="text-lg font-bold text-crimson m-0 mb-2 font-petrona">{routineName}</h3><p className="text-sm text-gray-600 font-semibold">{videoDuration && `${Math.floor(videoDuration / 60)}:${String(videoDuration % 60).padStart(2, '0')}`}{videoFileSize && ` \u2022 ${videoFileSize.toFixed(1)} MB`}</p></div>
+                <div className="text-center mb-6"><CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-3" /><h2 className="text-2xl font-bold text-navy m-0 mb-2 font-petrona">Video Ready!</h2><h3 className="text-lg font-bold text-crimson m-0 mb-2 font-petrona">{routineName}</h3><p className="text-sm text-gray-600 font-semibold">{videoDuration && `${Math.floor(videoDuration / 60)}:${String(videoDuration % 60).padStart(2, '0')}`}{videoFileSize && ` • ${videoFileSize.toFixed(1)} MB`}</p></div>
                 {showVideoPlayer && videoOutputUrl && <div className="mb-4"><video src={videoOutputUrl} controls className="w-full rounded-lg" style={{ maxHeight: '300px' }} /></div>}
                 <div className="space-y-2">
                   <button onClick={() => setShowVideoPlayer(!showVideoPlayer)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-navy border-2 border-navy hover:bg-navy/5 cursor-pointer bg-white min-h-[44px]"><Play className="w-5 h-5" /> {showVideoPlayer ? 'Hide' : 'Preview'}</button>
