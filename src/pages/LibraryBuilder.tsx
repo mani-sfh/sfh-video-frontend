@@ -296,14 +296,35 @@ window.sfhVLToggleR=function(uid){
 window.sfhVLOpen=function(mi){
   var b=sfhVLGetEl('sfhVL-mod-'+mi);
   if(!b)return;
+  // Close ALL modules first
+  var allMods=document.querySelectorAll('[id^="sfhVL-mod-"]');
+  for(var i=0;i<allMods.length;i++){
+    var idx=allMods[i].id.replace('sfhVL-mod-','');
+    var mc=sfhVLGetEl('sfhVL-mb-'+idx);
+    var ma=sfhVLGetEl('sfhVL-ma-'+idx);
+    var mh=sfhVLGetEl('sfhVL-mh-'+idx);
+    if(mc){
+      // Kill any open routine iframes
+      var iframes=mc.querySelectorAll('iframe');
+      for(var f=0;f<iframes.length;f++){iframes[f].src='about:blank';}
+      // Reset routine arrows
+      var ra=mc.querySelectorAll('[id^="sfhVL-ra-"]');
+      for(var r=0;r<ra.length;r++){ra[r].textContent='+';}
+      // Collapse routine bodies
+      var rb=mc.querySelectorAll('[id^="sfhVL-rb-"]');
+      for(var r2=0;r2<rb.length;r2++){rb[r2].style.display='none';}
+      mc.style.display='none';
+    }
+    if(ma)ma.textContent='+';
+    if(mh)mh.style.display='block';
+  }
+  // Now open the selected module
   var c=sfhVLGetEl('sfhVL-mb-'+mi);
   var a=sfhVLGetEl('sfhVL-ma-'+mi);
   var h=sfhVLGetEl('sfhVL-mh-'+mi);
-  if(c&&c.style.display==='none'){
-    c.style.display='block';
-    if(a)a.textContent='\\u2212';
-    if(h)h.style.display='none';
-  }
+  if(c){c.style.display='block';}
+  if(a)a.textContent='\\u2212';
+  if(h)h.style.display='none';
   if(window.parent&&window.parent!==window){
     window.parent.postMessage({namespace:'sfh',type:'scroll-into-view'},'*');
   }
