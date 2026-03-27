@@ -301,12 +301,6 @@ window.sfhVLOpen=function(mi){
     for(var i=0;i<sfhVLMods.length;i++){
       sfhVLSetMod(sfhVLMods[i],(sfhVLMods[i]===mi));
     }
-    setTimeout(function(){
-      try{
-        var b=sfhVLGetEl('sfhVL-mod-'+mi);
-        if(b){b.scrollIntoView({block:'start'});}
-      }catch(e){}
-    },50);
   }catch(e){}
   setTimeout(function(){sfhVLBusy=false;},150);
 };
