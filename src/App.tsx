@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Builder from './pages/Builder';
 import SavedRoutines from './pages/SavedRoutines';
@@ -13,19 +13,16 @@ function AppContent() {
     <div className="min-h-screen bg-cream">
       <Header />
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {/* Always-mounted pages: show/hide via CSS to preserve state */}
         <div style={{ display: path === '/' ? 'block' : 'none' }}>
           <Builder />
         </div>
         <div style={{ display: path === '/library' ? 'block' : 'none' }}>
           <LibraryBuilder />
         </div>
-
-        {/* Rarely-used pages: still use Routes (ok to remount) */}
-        <Routes>
-          <Route path="/saved" element={<SavedRoutines />} />
-          <Route path="/storyboard-preview" element={<StoryboardPreview />} />
-        </Routes>
+        <div style={{ display: path === '/saved' ? 'block' : 'none' }}>
+          <SavedRoutines />
+        </div>
+        {path === '/storyboard-preview' && <StoryboardPreview />}
       </main>
     </div>
   );
