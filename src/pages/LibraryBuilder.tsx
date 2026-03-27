@@ -233,32 +233,33 @@ ${hiddenInputsHTML}
 <details style="display: none;" open ontoggle="if(!window.sfhVLInit){window.sfhVLInit=true;try{eval(document.getElementById('sfhVLJS').textContent);}catch(e){}}"></details>
 <div id="sfhVLJS" style="display: none;">
 window.sfhVLInit=true;
+var sfhVLMods=[${modules.map((_,i) => i).join(',')}];
 var sfhVLBusy=false;
 
 function sfhVLGetEl(id){try{return document.getElementById(id);}catch(e){return null;}}
 
+function sfhVLSetMod(mi,show){
+  var body=sfhVLGetEl('sfhVL-mb-'+mi);
+  var arrow=sfhVLGetEl('sfhVL-ma-'+mi);
+  var hint=sfhVLGetEl('sfhVL-mh-'+mi);
+  if(body){body.style.display=show?'block':'none';}
+  if(arrow){arrow.textContent=show?'\\u2212':'+';}
+  if(hint){hint.style.display=show?'none':'block';}
+}
+
 window.sfhVLToggleM=function(mi){
-  var c=sfhVLGetEl('sfhVL-mb-'+mi);
-  var a=sfhVLGetEl('sfhVL-ma-'+mi);
-  var h=sfhVLGetEl('sfhVL-mh-'+mi);
-  if(!c)return;
-  if(c.style.display==='none'){
-    c.style.display='block';
-    if(a)a.textContent='\\u2212';
-    if(h)h.style.display='none';
-  }else{
-    var rc=c.querySelectorAll('[id^="sfhVL-rb-"]');
-    for(var i=0;i<rc.length;i++){
-      rc[i].style.display='none';
-      var iframe=rc[i].querySelector('iframe');
-      if(iframe)iframe.src='about:blank';
+  if(sfhVLBusy)return;
+  sfhVLBusy=true;
+  try{
+    var isOpen=false;
+    var body=sfhVLGetEl('sfhVL-mb-'+mi);
+    if(body){isOpen=(body.style.display==='block');}
+    for(var i=0;i<sfhVLMods.length;i++){
+      sfhVLSetMod(sfhVLMods[i],false);
     }
-    var ra=c.querySelectorAll('[id^="sfhVL-ra-"]');
-    for(var j=0;j<ra.length;j++){ra[j].textContent='+';}
-    c.style.display='none';
-    if(a)a.textContent='+';
-    if(h)h.style.display='inline';
-  }
+    if(!isOpen){sfhVLSetMod(mi,true);}
+  }catch(e){}
+  setTimeout(function(){sfhVLBusy=false;},150);
 };
 
 window.sfhVLToggleR=function(uid){
@@ -294,41 +295,23 @@ window.sfhVLToggleR=function(uid){
 };
 
 window.sfhVLOpen=function(mi){
-  var b=sfhVLGetEl('sfhVL-mod-'+mi);
-  if(!b)return;
-  // Close ALL modules first
-  var allMods=document.querySelectorAll('[id^="sfhVL-mod-"]');
-  for(var i=0;i<allMods.length;i++){
-    var idx=allMods[i].id.replace('sfhVL-mod-','');
-    var mc=sfhVLGetEl('sfhVL-mb-'+idx);
-    var ma=sfhVLGetEl('sfhVL-ma-'+idx);
-    var mh=sfhVLGetEl('sfhVL-mh-'+idx);
-    if(mc){
-      // Kill any open routine iframes
-      var iframes=mc.querySelectorAll('iframe');
-      for(var f=0;f<iframes.length;f++){iframes[f].src='about:blank';}
-      // Reset routine arrows
-      var ra=mc.querySelectorAll('[id^="sfhVL-ra-"]');
-      for(var r=0;r<ra.length;r++){ra[r].textContent='+';}
-      // Collapse routine bodies
-      var rb=mc.querySelectorAll('[id^="sfhVL-rb-"]');
-      for(var r2=0;r2<rb.length;r2++){rb[r2].style.display='none';}
-      mc.style.display='none';
+  if(sfhVLBusy)return;
+  sfhVLBusy=true;
+  try{
+    for(var i=0;i<sfhVLMods.length;i++){
+      sfhVLSetMod(sfhVLMods[i],(sfhVLMods[i]===mi));
     }
-    if(ma)ma.textContent='+';
-    if(mh)mh.style.display='block';
-  }
-  // Now open the selected module
-  var c=sfhVLGetEl('sfhVL-mb-'+mi);
-  var a=sfhVLGetEl('sfhVL-ma-'+mi);
-  var h=sfhVLGetEl('sfhVL-mh-'+mi);
-  if(c){c.style.display='block';}
-  if(a)a.textContent='\\u2212';
-  if(h)h.style.display='none';
-  if(window.parent&&window.parent!==window){
-    window.parent.postMessage({namespace:'sfh',type:'scroll-into-view'},'*');
-  }
-  b.scrollIntoView({behavior:'smooth',block:'start'});
+    var b=sfhVLGetEl('sfhVL-mod-'+mi);
+    if(b){
+      setTimeout(function(){
+        try{b.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}
+      },50);
+    }
+    if(window.parent&&window.parent!==window){
+      window.parent.postMessage({namespace:'sfh',type:'scroll-into-view'},'*');
+    }
+  }catch(e){}
+  setTimeout(function(){sfhVLBusy=false;},150);
 };
 
 var tkI=document.querySelectorAll('input[id^="sfhVL-tk-"]');
