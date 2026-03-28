@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, getThumbnailImages, supabase } from '../lib/supabase';
-import type { Exercise, ThumbnailImage } from '../lib/supabase';
+import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, getThumbnailImages, getSavedTemplates, saveTemplate, supabase } from '../lib/supabase';
+import type { Exercise, ThumbnailImage, SavedTemplate } from '../lib/supabase';
 import ExerciseCard from '../components/ExerciseCard';
 import PlaylistItem from '../components/PlaylistItem';
 import TemplateModal from '../components/TemplateModal';
@@ -21,6 +21,7 @@ export default function Builder() {
   const [thumbnailBadge, setThumbnailBadge] = useState('');
   const [thumbnailTitle, setThumbnailTitle] = useState('');
   const [thumbLibrary, setThumbLibrary] = useState<ThumbnailImage[]>([]);
+  const [savedTemplatesList, setSavedTemplatesList] = useState<SavedTemplate[]>([]);
   const [showThumbPicker, setShowThumbPicker] = useState(false);
   const [thumbSearch, setThumbSearch] = useState('');
   const [saving, setSaving] = useState(false);
@@ -55,7 +56,7 @@ export default function Builder() {
     return Array.from(prefixMap.entries()).map(([prefix, count]) => ({ prefix, count })).sort((a, b) => a.prefix.localeCompare(b.prefix));
   }, [exercises]);
 
-  useEffect(() => { async function load() { try { setExercises(await getExercises()); try { setThumbLibrary(await getThumbnailImages()); } catch(e) {} } catch (err) { console.error(err); } finally { setLoading(false); } } load(); }, []);
+  useEffect(() => { async function load() { try { setExercises(await getExercises()); try { setThumbLibrary(await getThumbnailImages()); } catch(e) {} try { setSavedTemplatesList(await getSavedTemplates()); } catch(e) {} } catch (err) { console.error(err); } finally { setLoading(false); } } load(); }, []);
 
   const filtered = useMemo(() => {
     let result = exercises;
@@ -88,9 +89,13 @@ export default function Builder() {
   function exportTemplate() {
     if (playlist.length === 0) return;
     const t = generateTemplateText(playlist, routineName, getTotalTime(), templateData);
-    navigator.clipboard.writeText(t).then(() => alert('Template copied!')).catch(() => {
+    navigator.clipboard.writeText(t).then(() => alert('Template copied & saved!')).catch(() => {
       const b = new Blob([t], { type: 'text/plain' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = (routineName || 'Template').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '.txt'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
     });
+    // Auto-save template to Supabase
+    saveTemplate({ label: routineName || 'Custom Routine', template_text: t, exercise_count: playlist.length })
+      .then((saved) => { setSavedTemplatesList((prev) => [saved, ...prev]); })
+      .catch((err) => console.error('Template save failed:', err));
   }
 
   function exportJSON() {
@@ -295,7 +300,7 @@ export default function Builder() {
         </div>
       )}
 
-      {showTemplateModal && <TemplateModal templateText={templateText} onTemplateTextChange={setTemplateText} onLoad={() => loadTemplate(templateText)} onClose={() => { setShowTemplateModal(false); setTemplateText(''); }} />}
+      {showTemplateModal && <TemplateModal templateText={templateText} onTemplateTextChange={setTemplateText} onLoad={() => loadTemplate(templateText)} onClose={() => { setShowTemplateModal(false); setTemplateText(''); }} savedTemplates={savedTemplatesList} />}
 
       {showResolutionModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
