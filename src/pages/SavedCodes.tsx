@@ -94,10 +94,14 @@ export default function SavedCodes() {
                     Saved {new Date(code.created_at).toLocaleDateString()} at {new Date(code.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                   {code.video_url && (
-                    <a href={code.video_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-teal hover:underline mt-1 inline-block">Video URL</a>
+                    <button onClick={() => { navigator.clipboard.writeText(code.video_url!); setCopiedId(code.id + 'vid'); setTimeout(() => setCopiedId(null), 2000); }} className="text-xs font-bold text-teal hover:text-teal/80 mt-1 inline-block cursor-pointer bg-transparent border-none p-0">
+                      {copiedId === code.id + 'vid' ? '✓ URL Copied!' : 'Copy Video URL'}
+                    </button>
                   )}
                   {code.thumbnail_image_url && (
-                    <a href={code.thumbnail_image_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-purple-600 hover:underline mt-1 inline-block ml-3">Thumbnail Image</a>
+                    <button onClick={() => { navigator.clipboard.writeText(code.thumbnail_image_url!); setCopiedId(code.id + 'img'); setTimeout(() => setCopiedId(null), 2000); }} className="text-xs font-bold text-purple-600 hover:text-purple-800 mt-1 inline-block ml-3 cursor-pointer bg-transparent border-none p-0">
+                      {copiedId === code.id + 'img' ? '✓ URL Copied!' : 'Copy Thumbnail URL'}
+                    </button>
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
