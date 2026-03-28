@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, supabase } from '../lib/supabase';
+import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, supabase } from '../lib/supabase';
 import type { Exercise } from '../lib/supabase';
 import ExerciseCard from '../components/ExerciseCard';
 import PlaylistItem from '../components/PlaylistItem';
@@ -144,6 +144,7 @@ export default function Builder() {
   function handleCopyMVCode() {
     if (playlist.length === 0) return;
     const mvCode = generateMVCode(playlist, routineName || 'Custom Routine', getTotalTime(), templateData);
+    const templateForSave = generateTemplateText(playlist, routineName, getTotalTime(), templateData);
     navigator.clipboard.writeText(mvCode).then(() => {
       setMvCopySuccess(true);
       setTimeout(() => setMvCopySuccess(false), 2500);
@@ -154,6 +155,18 @@ export default function Builder() {
       a.href = u; a.download = (routineName || 'MV_Code').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '_mv.html';
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
     });
+    // Auto-save to Supabase
+    saveMVCode({
+      routine_name: routineName || 'Custom Routine',
+      exercise_count: playlist.length,
+      duration_minutes: getTotalTime(),
+      mv_code: mvCode,
+      template_text: templateForSave,
+      thumbnail_image_url: thumbnailImageUrl || undefined,
+      thumbnail_badge: thumbnailBadge || undefined,
+      thumbnail_title: thumbnailTitle || undefined,
+      video_url: videoOutputUrl || undefined,
+    }).catch((err) => console.error('MV code save failed:', err));
   }
 
   if (loading) return (<div className="text-center py-20"><div className="animate-spin w-10 h-10 border-4 border-navy border-t-transparent rounded-full mx-auto mb-4"></div><p className="text-gray-500 font-semibold">Loading exercise library...</p></div>);
