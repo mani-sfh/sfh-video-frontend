@@ -258,3 +258,40 @@ export async function deleteThumbnailImage(id: string) {
     .eq('id', id);
   if (error) throw error;
 }
+
+// ── Saved Templates ──
+
+export interface SavedTemplate {
+  id: string;
+  label: string;
+  template_text: string;
+  exercise_count?: number;
+  created_at: string;
+}
+
+export async function saveTemplate(data: { label: string; template_text: string; exercise_count?: number }) {
+  const { data: result, error } = await supabase
+    .from('saved_templates')
+    .insert(data)
+    .select()
+    .single();
+  if (error) throw error;
+  return result;
+}
+
+export async function getSavedTemplates(): Promise<SavedTemplate[]> {
+  const { data, error } = await supabase
+    .from('saved_templates')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function deleteSavedTemplate(id: string) {
+  const { error } = await supabase
+    .from('saved_templates')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
