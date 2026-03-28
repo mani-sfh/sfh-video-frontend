@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, supabase } from '../lib/supabase';
-import type { Exercise } from '../lib/supabase';
+import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, getThumbnailImages, supabase } from '../lib/supabase';
+import type { Exercise, ThumbnailImage } from '../lib/supabase';
 import ExerciseCard from '../components/ExerciseCard';
 import PlaylistItem from '../components/PlaylistItem';
 import TemplateModal from '../components/TemplateModal';
-import { Search, Download, Save, Trash2, Clock, ListChecks, X, Video, Loader2, CheckCircle2, XCircle, Play, FileText, Code } from 'lucide-react';
+import { Search, Download, Save, Trash2, Clock, ListChecks, X, Video, Loader2, CheckCircle2, XCircle, Play, FileText, Code, ChevronDown } from 'lucide-react';
 import VideoStoryboard from '../components/storyboard/VideoStoryboard';
 import { parseTemplate, mergeTemplateWithDb, generateTemplateText } from '../lib/templateParser';
 import type { TemplateMetadata } from '../lib/templateParser';
@@ -20,11 +20,15 @@ export default function Builder() {
   const [thumbnailImageUrl, setThumbnailImageUrl] = useState('');
   const [thumbnailBadge, setThumbnailBadge] = useState('');
   const [thumbnailTitle, setThumbnailTitle] = useState('');
+  const [thumbLibrary, setThumbLibrary] = useState<ThumbnailImage[]>([]);
+  const [showThumbPicker, setShowThumbPicker] = useState(false);
+  const [thumbSearch, setThumbSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [showMobilePlaylist, setShowMobilePlaylist] = useState(false);
   const [videoJobId, setVideoJobId] = useState<string | null>(null);
   const [videoJobStatus, setVideoJobStatus] = useState<string | null>(null);
   const [videoOutputUrl, setVideoOutputUrl] = useState<string | null>(null);
+  const [videoThumbnailUrl, setVideoThumbnailUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoProgress, setVideoProgress] = useState(0);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
@@ -51,7 +55,7 @@ export default function Builder() {
     return Array.from(prefixMap.entries()).map(([prefix, count]) => ({ prefix, count })).sort((a, b) => a.prefix.localeCompare(b.prefix));
   }, [exercises]);
 
-  useEffect(() => { async function load() { try { setExercises(await getExercises()); } catch (err) { console.error(err); } finally { setLoading(false); } } load(); }, []);
+  useEffect(() => { async function load() { try { setExercises(await getExercises()); try { setThumbLibrary(await getThumbnailImages()); } catch(e) {} } catch (err) { console.error(err); } finally { setLoading(false); } } load(); }, []);
 
   const filtered = useMemo(() => {
     let result = exercises;
@@ -125,13 +129,13 @@ export default function Builder() {
       try {
         const job = await getVideoJob(jobId); setVideoJobStatus(job.status); setVideoCurrentStep(job.current_step || 'Processing...');
         if (job.progress_percentage != null) setVideoProgress(job.progress_percentage);
-        if (job.status === 'completed') { setVideoProgress(100); setVideoOutputUrl(job.output_url || null); setVideoDuration(job.duration_seconds || null); setVideoFileSize(job.file_size_mb || null); clearInterval(interval); }
+        if (job.status === 'completed') { setVideoProgress(100); setVideoOutputUrl(job.output_url || null); setVideoThumbnailUrl(job.thumbnail_url || null); setVideoDuration(job.duration_seconds || null); setVideoFileSize(job.file_size_mb || null); clearInterval(interval); }
         else if (job.status === 'failed') { setVideoError(job.error_message || 'Failed'); clearInterval(interval); }
       } catch (err) { setVideoError('Status check failed'); setVideoJobStatus('failed'); clearInterval(interval); }
     }, 3000);
   }
 
-  function closeVideoModal() { setVideoJobId(null); setVideoJobStatus(null); setVideoProgress(0); setVideoError(null); setVideoOutputUrl(null); setShowVideoPlayer(false); setVideoDuration(null); setVideoFileSize(null); setVideoCurrentStep(null); }
+  function closeVideoModal() { setVideoJobId(null); setVideoJobStatus(null); setVideoProgress(0); setVideoError(null); setVideoOutputUrl(null); setVideoThumbnailUrl(null); setShowVideoPlayer(false); setVideoDuration(null); setVideoFileSize(null); setVideoCurrentStep(null); }
 
   async function handleDownloadVideo() {
     if (!videoOutputUrl) return; setIsDownloading(true);
@@ -166,6 +170,7 @@ export default function Builder() {
       thumbnail_badge: thumbnailBadge || undefined,
       thumbnail_title: thumbnailTitle || undefined,
       video_url: videoOutputUrl || undefined,
+      generated_thumbnail_url: videoThumbnailUrl || undefined,
     }).catch((err) => console.error('MV code save failed:', err));
   }
 
@@ -199,28 +204,53 @@ export default function Builder() {
 
       <div className={`w-80 flex-shrink-0 ${showMobilePlaylist ? 'fixed inset-0 z-40 bg-cream p-4 overflow-y-auto lg:relative lg:inset-auto lg:z-auto lg:p-0' : 'hidden lg:block'}`}>
         {showMobilePlaylist && <button onClick={() => setShowMobilePlaylist(false)} className="lg:hidden mb-3 text-navy font-bold text-sm cursor-pointer bg-transparent border-none">\u2190 Back</button>}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 sticky top-4">
-          <div className="flex items-center justify-between mb-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sticky top-4 max-h-[calc(100vh-40px)] flex flex-col">
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <h3 className="text-lg font-bold text-navy m-0">Playlist</h3>
             {playlist.length > 0 && <button onClick={clearPlaylist} className="text-xs text-gray-400 hover:text-red-500 font-bold cursor-pointer bg-transparent border-none flex items-center gap-1"><Trash2 className="w-3 h-3" /> Clear</button>}
           </div>
           {playlist.length === 0 ? (
             <div className="text-center py-8"><ListChecks className="w-10 h-10 text-gray-200 mx-auto mb-3" /><p className="text-gray-400 font-semibold text-sm">Click exercises to add them.</p></div>
           ) : (<>
-            <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Routine name" className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-sm font-semibold mb-2" />
-            <input type="text" value={thumbnailImageUrl} onChange={(e) => setThumbnailImageUrl(e.target.value)} placeholder="Thumbnail overlay image URL (optional)" className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-xs font-semibold mb-2 text-gray-500" />
-            <div className="flex gap-2 mb-3">
-              <input type="text" value={thumbnailBadge} onChange={(e) => setThumbnailBadge(e.target.value)} placeholder="Badge: e.g. 5 MIN" className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-xs font-semibold text-gray-500" />
-              <input type="text" value={thumbnailTitle} onChange={(e) => setThumbnailTitle(e.target.value)} placeholder="Title: e.g. WARM-UP" className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-xs font-semibold text-gray-500" />
+            <div className="flex-shrink-0">
+              <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Routine name" className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-sm font-semibold mb-2" />
+              <div className="relative mb-2">
+                <div className="flex gap-1">
+                  <input type="text" value={thumbnailImageUrl} onChange={(e) => setThumbnailImageUrl(e.target.value)} placeholder="Thumbnail image URL (optional)" className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-xs font-semibold text-gray-500" />
+                  {thumbLibrary.length > 0 && (
+                    <button onClick={() => setShowThumbPicker(!showThumbPicker)} className="px-2 py-2 rounded-lg border-2 border-gray-200 hover:border-navy bg-white cursor-pointer flex items-center">
+                      <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showThumbPicker ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
+                </div>
+                {showThumbPicker && thumbLibrary.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border-2 border-navy/20 rounded-lg shadow-lg z-20 max-h-52 overflow-y-auto">
+                    <input type="text" value={thumbSearch} onChange={(e) => setThumbSearch(e.target.value)} placeholder="Search images..." className="w-full px-3 py-2 border-b border-gray-200 text-xs font-semibold focus:outline-none sticky top-0 bg-white" />
+                    {thumbLibrary.filter(img => !thumbSearch || img.label.toLowerCase().includes(thumbSearch.toLowerCase())).map((img) => (
+                      <button key={img.id} onClick={() => { setThumbnailImageUrl(img.image_url); setShowThumbPicker(false); setThumbSearch(''); }} className="w-full flex items-center gap-2 px-3 py-2 hover:bg-cream cursor-pointer border-none bg-transparent text-left">
+                        <img src={img.image_url} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 bg-gray-100" />
+                        <span className="text-xs font-bold text-navy truncate">{img.label}</span>
+                      </button>
+                    ))}
+                    {thumbLibrary.filter(img => !thumbSearch || img.label.toLowerCase().includes(thumbSearch.toLowerCase())).length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-3">No matches</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 mb-3">
+                <input type="text" value={thumbnailBadge} onChange={(e) => setThumbnailBadge(e.target.value)} placeholder="Badge: e.g. 5 MIN" className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-xs font-semibold text-gray-500" />
+                <input type="text" value={thumbnailTitle} onChange={(e) => setThumbnailTitle(e.target.value)} placeholder="Title: e.g. WARM-UP" className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-xs font-semibold text-gray-500" />
+              </div>
+              <div className="flex items-center gap-4 mb-3 text-sm">
+                <span className="flex items-center gap-1 font-semibold text-gray-500"><ListChecks className="w-4 h-4 text-teal" />{playlist.length}</span>
+                <span className="flex items-center gap-1 font-semibold text-gray-500"><Clock className="w-4 h-4 text-teal" />~{getTotalTime()} min</span>
+              </div>
             </div>
-            <div className="flex items-center gap-4 mb-3 text-sm">
-              <span className="flex items-center gap-1 font-semibold text-gray-500"><ListChecks className="w-4 h-4 text-teal" />{playlist.length}</span>
-              <span className="flex items-center gap-1 font-semibold text-gray-500"><Clock className="w-4 h-4 text-teal" />~{getTotalTime()} min</span>
-            </div>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto mb-4 pr-1">
+            <div className="space-y-2 overflow-y-auto mb-4 pr-1 flex-1 min-h-0">
               {playlist.map((ex, i) => (<PlaylistItem key={ex.id} exercise={ex} index={i} onRemove={removeFromPlaylist} onMoveUp={() => moveItem(i, -1)} onMoveDown={() => moveItem(i, 1)} isFirst={i === 0} isLast={i === playlist.length - 1} />))}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 flex-shrink-0">
               <button onClick={handleGenerateVideo} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg transition-all cursor-pointer border-none min-h-[44px]"><Video className="w-5 h-5" /> Generate Video</button>
               <button onClick={exportJSON} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border-2 border-teal text-teal hover:bg-teal/5 transition-all cursor-pointer bg-white min-h-[44px]"><Download className="w-4 h-4" /> Export JSON</button>
               <button onClick={handleSave} disabled={saving || !routineName.trim()} className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-2 min-h-[44px] ${!routineName.trim() ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-navy text-navy hover:bg-navy/5 bg-white'}`}><Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save to Library'}</button>
