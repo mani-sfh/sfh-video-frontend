@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Film, BookmarkCheck, Library } from 'lucide-react';
+import { Film, BookmarkCheck, Library, Code } from 'lucide-react';
 
 export default function Header() {
   const location = useLocation();
@@ -40,6 +40,17 @@ export default function Header() {
           >
             <BookmarkCheck className="w-4 h-4" />
             Saved
+          </Link>
+          <Link
+            to="/codes"
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold no-underline transition-all ${
+              location.pathname === '/codes'
+                ? 'bg-white/20 text-white'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Code className="w-4 h-4" />
+            Codes
           </Link>
           <Link
             to="/library"
