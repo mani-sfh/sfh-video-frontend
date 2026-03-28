@@ -167,3 +167,56 @@ export async function generateRoutineVideo(params: {
 
   return response.json();
 }
+
+// ── MV Codes Storage ──
+
+export interface MVCode {
+  id: string;
+  routine_name: string;
+  exercise_count: number;
+  duration_minutes: number;
+  mv_code: string;
+  template_text?: string;
+  thumbnail_image_url?: string;
+  thumbnail_badge?: string;
+  thumbnail_title?: string;
+  video_url?: string;
+  created_at: string;
+}
+
+export async function saveMVCode(data: {
+  routine_name: string;
+  exercise_count: number;
+  duration_minutes: number;
+  mv_code: string;
+  template_text?: string;
+  thumbnail_image_url?: string;
+  thumbnail_badge?: string;
+  thumbnail_title?: string;
+  video_url?: string;
+}) {
+  const { data: result, error } = await supabase
+    .from('mv_codes')
+    .insert(data)
+    .select()
+    .single();
+  if (error) throw error;
+  return result;
+}
+
+export async function getMVCodes(): Promise<MVCode[]> {
+  const { data, error } = await supabase
+    .from('mv_codes')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function deleteMVCode(id: string) {
+  const { error } = await supabase
+    .from('mv_codes')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
