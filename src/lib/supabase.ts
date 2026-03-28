@@ -181,6 +181,7 @@ export interface MVCode {
   thumbnail_badge?: string;
   thumbnail_title?: string;
   video_url?: string;
+  generated_thumbnail_url?: string;
   created_at: string;
 }
 
@@ -194,6 +195,7 @@ export async function saveMVCode(data: {
   thumbnail_badge?: string;
   thumbnail_title?: string;
   video_url?: string;
+  generated_thumbnail_url?: string;
 }) {
   const { data: result, error } = await supabase
     .from('mv_codes')
@@ -216,6 +218,42 @@ export async function getMVCodes(): Promise<MVCode[]> {
 export async function deleteMVCode(id: string) {
   const { error } = await supabase
     .from('mv_codes')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ── Thumbnail Image Library ──
+
+export interface ThumbnailImage {
+  id: string;
+  label: string;
+  image_url: string;
+  created_at: string;
+}
+
+export async function saveThumbnailImage(data: { label: string; image_url: string }) {
+  const { data: result, error } = await supabase
+    .from('thumbnail_images')
+    .insert(data)
+    .select()
+    .single();
+  if (error) throw error;
+  return result;
+}
+
+export async function getThumbnailImages(): Promise<ThumbnailImage[]> {
+  const { data, error } = await supabase
+    .from('thumbnail_images')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function deleteThumbnailImage(id: string) {
+  const { error } = await supabase
+    .from('thumbnail_images')
     .delete()
     .eq('id', id);
   if (error) throw error;
