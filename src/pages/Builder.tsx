@@ -17,6 +17,7 @@ export default function Builder() {
   const [activeCodePrefix, setActiveCodePrefix] = useState<string | null>(null);
   const [playlist, setPlaylist] = useState<Exercise[]>([]);
   const [routineName, setRoutineName] = useState('');
+  const [thumbnailImageUrl, setThumbnailImageUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [showMobilePlaylist, setShowMobilePlaylist] = useState(false);
   const [videoJobId, setVideoJobId] = useState<string | null>(null);
@@ -112,7 +113,7 @@ export default function Builder() {
       setVideoJobId(job.id);
       const overrides: Record<string, { focus?: string; start_side?: string; position_type?: string }> = {};
       for (const ex of playlist) { const o: any = {}; if (ex.focus) o.focus = ex.focus; if (ex.start_side) o.start_side = ex.start_side; if (ex.position_type) o.position_type = ex.position_type; if (Object.keys(o).length > 0) overrides[ex.id] = o; }
-      await generateRoutineVideo({ jobId: job.id, routineName: routineName || 'Custom Routine', exerciseIds: playlist.map((ex) => ex.id), resolution: selectedResolution, totalDuration: `~${getTotalTime()} minutes`, equipment: templateData?.equipment, subtitle: templateData?.subtitle, level: templateData?.level, condition: templateData?.condition, exerciseOverrides: Object.keys(overrides).length > 0 ? overrides : undefined });
+      await generateRoutineVideo({ jobId: job.id, routineName: routineName || 'Custom Routine', exerciseIds: playlist.map((ex) => ex.id), resolution: selectedResolution, totalDuration: `~${getTotalTime()} minutes`, equipment: templateData?.equipment, subtitle: templateData?.subtitle, level: templateData?.level, condition: templateData?.condition, thumbnailImageUrl: thumbnailImageUrl || undefined, exerciseOverrides: Object.keys(overrides).length > 0 ? overrides : undefined });
       startPolling(job.id);
     } catch (err) { setVideoError((err as Error).message); setVideoJobStatus('failed'); }
   }
@@ -191,7 +192,8 @@ export default function Builder() {
           {playlist.length === 0 ? (
             <div className="text-center py-8"><ListChecks className="w-10 h-10 text-gray-200 mx-auto mb-3" /><p className="text-gray-400 font-semibold text-sm">Click exercises to add them.</p></div>
           ) : (<>
-            <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Routine name" className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-sm font-semibold mb-3" />
+            <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Routine name" className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-sm font-semibold mb-2" />
+            <input type="text" value={thumbnailImageUrl} onChange={(e) => setThumbnailImageUrl(e.target.value)} placeholder="Thumbnail overlay image URL (optional)" className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-xs font-semibold mb-3 text-gray-500" />
             <div className="flex items-center gap-4 mb-3 text-sm">
               <span className="flex items-center gap-1 font-semibold text-gray-500"><ListChecks className="w-4 h-4 text-teal" />{playlist.length}</span>
               <span className="flex items-center gap-1 font-semibold text-gray-500"><Clock className="w-4 h-4 text-teal" />~{getTotalTime()} min</span>
