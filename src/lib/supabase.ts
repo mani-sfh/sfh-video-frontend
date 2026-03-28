@@ -119,6 +119,8 @@ export async function generateRoutineVideo(params: {
   level?: string;
   condition?: string;
   thumbnailImageUrl?: string;
+  thumbnailBadge?: string;
+  thumbnailTitle?: string;
   exerciseOverrides?: Record<string, { focus?: string; start_side?: string; position_type?: string }>;
 }) {
   if (!railwayUrl) {
@@ -153,6 +155,8 @@ export async function generateRoutineVideo(params: {
       level: params.level,
       condition: params.condition,
       thumbnailImageUrl: params.thumbnailImageUrl,
+      thumbnailBadge: params.thumbnailBadge,
+      thumbnailTitle: params.thumbnailTitle,
     }),
   });
 
