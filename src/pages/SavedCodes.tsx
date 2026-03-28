@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getMVCodes, deleteMVCode } from '../lib/supabase';
-import type { MVCode } from '../lib/supabase';
-import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { getMVCodes, deleteMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage } from '../lib/supabase';
+import type { MVCode, ThumbnailImage } from '../lib/supabase';
+import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ImagePlus, Image } from 'lucide-react';
 
 export default function SavedCodes() {
   const [codes, setCodes] = useState<MVCode[]>([]);
@@ -10,10 +10,20 @@ export default function SavedCodes() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedType, setExpandedType] = useState<'mv' | 'template' | null>(null);
 
+  // Image Library state
+  const [thumbImages, setThumbImages] = useState<ThumbnailImage[]>([]);
+  const [newLabel, setNewLabel] = useState('');
+  const [newUrl, setNewUrl] = useState('');
+  const [savingImage, setSavingImage] = useState(false);
+  const [showImageLib, setShowImageLib] = useState(true);
+
   useEffect(() => {
     async function load() {
-      try { setCodes(await getMVCodes()); }
-      catch (err) { console.error(err); }
+      try {
+        const [codesData, imagesData] = await Promise.all([getMVCodes(), getThumbnailImages()]);
+        setCodes(codesData);
+        setThumbImages(imagesData);
+      } catch (err) { console.error(err); }
       finally { setLoading(false); }
     }
     load();
@@ -40,6 +50,26 @@ export default function SavedCodes() {
     } catch (err) { console.error(err); }
   }
 
+  async function handleAddImage() {
+    if (!newLabel.trim() || !newUrl.trim()) return;
+    setSavingImage(true);
+    try {
+      const saved = await saveThumbnailImage({ label: newLabel.trim(), image_url: newUrl.trim() });
+      setThumbImages((prev) => [saved, ...prev]);
+      setNewLabel('');
+      setNewUrl('');
+    } catch (err) { console.error(err); }
+    finally { setSavingImage(false); }
+  }
+
+  async function handleDeleteImage(id: string) {
+    if (!confirm('Delete this image?')) return;
+    try {
+      await deleteThumbnailImage(id);
+      setThumbImages((prev) => prev.filter((img) => img.id !== id));
+    } catch (err) { console.error(err); }
+  }
+
   function toggleExpand(id: string, type: 'mv' | 'template') {
     if (expandedId === id && expandedType === type) {
       setExpandedId(null);
@@ -61,6 +91,52 @@ export default function SavedCodes() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* ── Image Library ── */}
+      <div className="mb-8">
+        <button onClick={() => setShowImageLib(!showImageLib)} className="flex items-center gap-2 text-xl font-bold text-navy mb-2 cursor-pointer bg-transparent border-none p-0">
+          <Image className="w-5 h-5" />
+          Thumbnail Image Library
+          {showImageLib ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {showImageLib && (
+          <>
+            <p className="text-gray-500 font-semibold mb-4 text-sm">Save your OpenArt image URLs here. Copy any URL when building a video.</p>
+            <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+              <div className="flex gap-2">
+                <input type="text" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Label: e.g. Module 1 Warm-Up" className="flex-1 px-3 py-2.5 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-sm font-semibold" />
+                <input type="text" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="Paste OpenArt image URL" className="flex-[2] px-3 py-2.5 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-sm font-semibold text-gray-500" />
+                <button onClick={handleAddImage} disabled={savingImage || !newLabel.trim() || !newUrl.trim()} className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-navy to-crimson hover:shadow-md transition-all cursor-pointer border-none disabled:opacity-50 whitespace-nowrap min-h-[44px]">
+                  <ImagePlus className="w-4 h-4" /> {savingImage ? '...' : 'Save'}
+                </button>
+              </div>
+            </div>
+            {thumbImages.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {thumbImages.map((img) => (
+                  <div key={img.id} className="bg-white rounded-xl border border-gray-200 p-3 flex gap-3">
+                    <img src={img.image_url} alt={img.label} className="w-16 h-16 rounded-lg object-cover flex-shrink-0 bg-gray-100" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-navy text-sm truncate">{img.label}</p>
+                      <p className="text-xs text-gray-400 truncate mt-0.5">{img.image_url}</p>
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={() => { navigator.clipboard.writeText(img.image_url); setCopiedId('img-' + img.id); setTimeout(() => setCopiedId(null), 2000); }} className="text-xs font-bold text-teal hover:text-teal/80 cursor-pointer bg-transparent border-none p-0">
+                          {copiedId === 'img-' + img.id ? '✓ Copied!' : 'Copy URL'}
+                        </button>
+                        <button onClick={() => handleDeleteImage(img.id)} className="text-xs font-bold text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0">Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {thumbImages.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-4">No images saved yet. Add your first OpenArt URL above.</p>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Saved MV Codes ── */}
       <h2 className="text-2xl font-bold text-navy mb-2">Saved MV Codes</h2>
       <p className="text-gray-500 font-semibold mb-6">Every MV embed code you generate is saved here. Copy anytime.</p>
       {codes.length === 0 ? (
@@ -100,8 +176,13 @@ export default function SavedCodes() {
                   )}
                   {code.thumbnail_image_url && (
                     <button onClick={() => { navigator.clipboard.writeText(code.thumbnail_image_url!); setCopiedId(code.id + 'img'); setTimeout(() => setCopiedId(null), 2000); }} className="text-xs font-bold text-purple-600 hover:text-purple-800 mt-1 inline-block ml-3 cursor-pointer bg-transparent border-none p-0">
-                      {copiedId === code.id + 'img' ? '✓ URL Copied!' : 'Copy Thumbnail URL'}
+                      {copiedId === code.id + 'img' ? '✓ URL Copied!' : 'Copy Overlay URL'}
                     </button>
+                  )}
+                  {code.generated_thumbnail_url && (
+                    <a href={code.generated_thumbnail_url} download target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-orange-600 hover:text-orange-800 mt-1 inline-block ml-3 no-underline">
+                      ↓ Download Thumbnail PNG
+                    </a>
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
