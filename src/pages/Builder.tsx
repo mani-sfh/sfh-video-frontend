@@ -211,6 +211,7 @@ export default function Builder() {
       routine_name: j.routineName, exercise_count: j.playlist.length, duration_minutes: j.totalTime, mv_code: mvCode, template_text: templateForSave,
       thumbnail_image_url: j.thumbImageUrl || undefined, thumbnail_badge: j.thumbBadge || undefined, thumbnail_title: j.thumbTitle || undefined,
       video_url: j.outputUrl || undefined, generated_thumbnail_url: j.thumbnailUrl || undefined,
+      vimeo_id: j.vimeoResult?.vimeoId || undefined,
     }).catch((err) => console.error('MV code save failed:', err));
   }
 
