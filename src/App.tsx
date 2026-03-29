@@ -1,7 +1,6 @@
 import { BrowserRouter, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Builder from './pages/Builder';
-import SavedRoutines from './pages/SavedRoutines';
 import SavedCodes from './pages/SavedCodes';
 import StoryboardPreview from './pages/StoryboardPreview';
 import LibraryBuilder from './pages/LibraryBuilder';
@@ -19,9 +18,6 @@ function AppContent() {
         </div>
         <div style={{ display: path === '/library' ? 'block' : 'none' }}>
           <LibraryBuilder />
-        </div>
-        <div style={{ display: path === '/saved' ? 'block' : 'none' }}>
-          <SavedRoutines />
         </div>
         <div style={{ display: path === '/codes' ? 'block' : 'none' }}>
           <SavedCodes />
