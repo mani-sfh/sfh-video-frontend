@@ -329,7 +329,7 @@ export async function updateSavedTemplate(id: string, data: { label?: string; te
 
 // ── Vimeo Upload ──
 
-export async function uploadToVimeo(params: { videoUrl: string; title: string; description?: string }): Promise<{ vimeoId: string; vimeoLink: string; status: string }> {
+export async function uploadToVimeo(params: { videoUrl: string; title: string; description?: string; thumbnailUrl?: string }): Promise<{ vimeoId: string; vimeoLink: string; status: string }> {
   if (!railwayUrl) {
     throw new Error('Railway URL not configured.');
   }
