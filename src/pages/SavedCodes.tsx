@@ -55,6 +55,8 @@ export default function SavedCodes() {
   const [showImages, setShowImages] = useState(true);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showCodes, setShowCodes] = useState(false);
+  const [editingVimeoId, setEditingVimeoId] = useState<string | null>(null);
+  const [vimeoIdInput, setVimeoIdInput] = useState('');
 
   useEffect(() => { async function load() { try { const [c,i,t] = await Promise.all([getMVCodes(),getThumbnailImages(),getSavedTemplates()]); setCodes(c); setThumbImages(i); setTemplates(t); } catch(e){console.error(e);} finally{setLoading(false);} } load(); }, []);
 
@@ -76,6 +78,23 @@ export default function SavedCodes() {
   function startEditTemplate(t:SavedTemplate) { setEditTplId(t.id);setEditTplLabel(t.label);setEditTplText(t.template_text);setEditTplThumb(t.thumbnail_image_url||''); }
   async function saveEditTemplate() { if(!editTplId||!editTplLabel.trim())return; try{await updateSavedTemplate(editTplId,{label:editTplLabel.trim(),template_text:editTplText,thumbnail_image_url:editTplThumb.trim()||undefined});setTemplates(p=>p.map(t=>t.id===editTplId?{...t,label:editTplLabel.trim(),template_text:editTplText,thumbnail_image_url:editTplThumb.trim()||undefined}:t));setEditTplId(null);}catch(e){} }
   async function handleDeleteCode(id:string) { if(!confirm('Delete?'))return; try{await deleteMVCode(id);setCodes(p=>p.filter(c=>c.id!==id));}catch(e){} }
+
+  async function handleSaveVimeoId(codeId: string) {
+    let vid = vimeoIdInput.trim();
+    // Extract ID from various formats: full URL, player URL, or just the number
+    const urlMatch = vid.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+    if (urlMatch) vid = urlMatch[1];
+    else vid = vid.replace(/[^0-9]/g, '');
+    if (!vid) return;
+    const code = codes.find(c => c.id === codeId);
+    if (!code) return;
+    const updatedMvCode = code.mv_code.replace(/YOUR_VIDEO_ID_HERE/g, vid).replace(/player\.vimeo\.com\/video\/\d+/g, `player.vimeo.com/video/${vid}`);
+    try {
+      await updateMVCode(codeId, { mv_code: updatedMvCode, vimeo_id: vid });
+      setCodes(p => p.map(c => c.id === codeId ? { ...c, mv_code: updatedMvCode, vimeo_id: vid } : c));
+      setEditingVimeoId(null); setVimeoIdInput('');
+    } catch (e) { console.error(e); }
+  }
 
   function ThumbPicker({value,onChange,show,setShow}:{value:string,onChange:(v:string)=>void,show:boolean,setShow:(v:boolean)=>void}) {
     const [s,setS]=useState('');
@@ -242,6 +261,28 @@ export default function SavedCodes() {
                     <button onClick={()=>handleDeleteCode(code.id)} className="text-xs font-bold text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><Trash2 className="w-3 h-3"/></button>
                   </div>
                   {previewId===code.id&&previewType==='mv'&&(<pre className="text-xs text-gray-600 whitespace-pre-wrap break-all max-h-48 overflow-y-auto font-mono mt-2 p-2 bg-white rounded border border-gray-200">{code.mv_code.substring(0,2000)}{code.mv_code.length>2000?'\n...(truncated)':''}</pre>)}
+                  {/* Vimeo ID */}
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    {code.vimeo_id ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-green-600">Vimeo ID: {code.vimeo_id}</span>
+                        <button onClick={()=>doCopy(`https://player.vimeo.com/video/${code.vimeo_id}`,code.id,'vimeo')} className="text-xs font-bold text-teal cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'vimeo'?'✓ Copied':'Copy Player URL'}</button>
+                        <button onClick={()=>{setEditingVimeoId(code.id);setVimeoIdInput(code.vimeo_id||'');}} className="text-xs font-bold text-gray-400 hover:text-navy cursor-pointer bg-transparent border-none p-0">Update</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">No Vimeo ID</span>
+                        {editingVimeoId!==code.id&&<button onClick={()=>{setEditingVimeoId(code.id);setVimeoIdInput('');}} className="text-xs font-bold text-teal cursor-pointer bg-transparent border-none p-0">+ Add Vimeo ID</button>}
+                      </div>
+                    )}
+                    {editingVimeoId===code.id&&(
+                      <div className="flex gap-1.5 mt-1.5 items-center">
+                        <input type="text" value={vimeoIdInput} onChange={e=>setVimeoIdInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleSaveVimeoId(code.id);if(e.key==='Escape')setEditingVimeoId(null);}} placeholder="Paste Vimeo ID or URL" className="flex-1 px-2 py-1 rounded border-2 border-teal text-xs font-semibold focus:outline-none" autoFocus/>
+                        <button onClick={()=>handleSaveVimeoId(code.id)} className="text-xs font-bold text-teal cursor-pointer bg-transparent border-none p-0">Save</button>
+                        <button onClick={()=>setEditingVimeoId(null)} className="text-xs font-bold text-gray-400 cursor-pointer bg-transparent border-none p-0">Cancel</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
