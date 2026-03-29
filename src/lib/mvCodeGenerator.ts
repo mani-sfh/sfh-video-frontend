@@ -239,7 +239,8 @@ export function generateMVCode(
   playlist: Exercise[],
   routineName: string,
   totalTime: number,
-  templateData: TemplateMetadata | null
+  templateData: TemplateMetadata | null,
+  vimeoId?: string
 ): string {
   const exerciseCount = playlist.length;
   const duration = `~${totalTime} minutes`;
@@ -301,7 +302,7 @@ export function generateMVCode(
       <p style="margin: 0; font-size: 17px; font-weight: 700; font-family: 'Petrona', Georgia, serif;">Press Play &amp; Follow Along</p>
     </div>
     <div style="position: relative; padding-bottom: 56.25%; height: 0; background: #000;">
-      <iframe src="https://player.vimeo.com/video/YOUR_VIDEO_ID_HERE?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
+      <iframe src="https://player.vimeo.com/video/${vimeoId || 'YOUR_VIDEO_ID_HERE'}?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
     </div>
     <div style="background: #f5f5f5; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px; padding: 10px 16px; text-align: center;">
       <p style="margin: 0; font-size: 15px; color: #444; font-weight: 600;">Pause anytime you need. Your pace, your practice.</p>
