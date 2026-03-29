@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useRef } from "react";
+import { getMVCodes } from "../lib/supabase";
+import type { MVCode } from "../lib/supabase";
 
 // ═══════════════════════════════════════════════
 // SFH Video Library Builder — MVP
@@ -350,6 +352,11 @@ export default function LibraryBuilder() {
   const [editingRoutineCode, setEditingRoutineCode] = useState<{ mi: number; ri: number; name: string; mvCode: string } | null>(null);
   const [copiedRoutineId, setCopiedRoutineId] = useState<string | null>(null);
   const [movingRoutine, setMovingRoutine] = useState<{ mi: number; ri: number } | null>(null);
+  const [savedMVCodes, setSavedMVCodes] = useState<MVCode[]>([]);
+  const [showCodePicker, setShowCodePicker] = useState(false);
+  const [codePickerSearch, setCodePickerSearch] = useState("");
+  const [showEditCodePicker, setShowEditCodePicker] = useState(false);
+  const [editCodePickerSearch, setEditCodePickerSearch] = useState("");
   const [showOutput, setShowOutput] = useState(false);
   const [outputHTML, setOutputHTML] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
@@ -367,6 +374,8 @@ export default function LibraryBuilder() {
         setActiveProgramId(data.activeProgramId || null);
       }
     } catch (e) { /* */ }
+    // Load saved MV codes from Supabase
+    getMVCodes().then(codes => setSavedMVCodes(codes)).catch(() => {});
   }, []);
 
   // Save
@@ -804,9 +813,32 @@ export default function LibraryBuilder() {
           <div style={S.modalBox}>
             <div style={{ padding: 20, borderBottom: "1px solid #f1f5f9" }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0C115B" }}>Add Routine to "{activeProgram?.modules[addingRoutine.moduleIndex]?.name}"</h3>
-              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Paste the MV code from the Video Builder.</p>
+              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Pick from saved codes or paste MV code manually.</p>
             </div>
             <div style={{ padding: 20, flex: 1, overflow: "auto" }}>
+              {/* Saved MV Code Picker */}
+              {savedMVCodes.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <button onClick={() => { setShowCodePicker(!showCodePicker); setCodePickerSearch(""); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 8, border: "2px solid rgba(166,30,81,0.3)", background: "rgba(166,30,81,0.05)", cursor: "pointer", fontFamily: "inherit" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#A61E51" }}>Pick from {savedMVCodes.length} saved MV code{savedMVCodes.length !== 1 ? "s" : ""}</span>
+                    <span style={{ fontSize: 12, color: "#A61E51", transform: showCodePicker ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
+                  </button>
+                  {showCodePicker && (
+                    <div style={{ border: "2px solid rgba(12,17,91,0.15)", borderRadius: 8, marginTop: 4, maxHeight: 220, overflow: "auto", background: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+                      <input type="text" value={codePickerSearch} onChange={e => setCodePickerSearch(e.target.value)} placeholder="Search by routine name..." style={{ width: "100%", padding: "8px 12px", border: "none", borderBottom: "1px solid #f1f5f9", fontSize: 13, fontWeight: 600, fontFamily: "inherit", outline: "none", position: "sticky", top: 0, background: "#fff" }} />
+                      {savedMVCodes.filter(c => !codePickerSearch || c.routine_name.toLowerCase().includes(codePickerSearch.toLowerCase())).map(c => (
+                        <button key={c.id} onClick={() => { setAddingRoutine({ ...addingRoutine, name: c.routine_name, mvCode: c.mv_code }); setShowCodePicker(false); setCodePickerSearch(""); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", border: "none", borderBottom: "1px solid #f8fafc", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0C115B" }}>{c.routine_name}</span>
+                          <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{c.exercise_count} ex · ~{c.duration_minutes}m</span>
+                        </button>
+                      ))}
+                      {savedMVCodes.filter(c => !codePickerSearch || c.routine_name.toLowerCase().includes(codePickerSearch.toLowerCase())).length === 0 && (
+                        <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, padding: 12, margin: 0 }}>No matches</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ marginBottom: 12 }}>
                 <label style={S.label}>Routine Name</label>
                 <input style={S.input} value={addingRoutine.name} onChange={e => setAddingRoutine({ ...addingRoutine, name: e.target.value })} placeholder="e.g. Core & Posture Awareness" autoFocus />
@@ -838,9 +870,32 @@ export default function LibraryBuilder() {
           <div style={S.modalBox}>
             <div style={{ padding: 20, borderBottom: "1px solid #f1f5f9" }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0C115B" }}>Edit Routine</h3>
-              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Update the routine name or MV code.</p>
+              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Update name, replace MV code, or pick from saved codes.</p>
             </div>
             <div style={{ padding: 20, flex: 1, overflow: "auto" }}>
+              {/* Saved MV Code Picker */}
+              {savedMVCodes.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <button onClick={() => { setShowEditCodePicker(!showEditCodePicker); setEditCodePickerSearch(""); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 8, border: "2px solid rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.05)", cursor: "pointer", fontFamily: "inherit" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#6366f1" }}>Replace with saved MV code</span>
+                    <span style={{ fontSize: 12, color: "#6366f1", transform: showEditCodePicker ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
+                  </button>
+                  {showEditCodePicker && (
+                    <div style={{ border: "2px solid rgba(12,17,91,0.15)", borderRadius: 8, marginTop: 4, maxHeight: 220, overflow: "auto", background: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+                      <input type="text" value={editCodePickerSearch} onChange={e => setEditCodePickerSearch(e.target.value)} placeholder="Search by routine name..." style={{ width: "100%", padding: "8px 12px", border: "none", borderBottom: "1px solid #f1f5f9", fontSize: 13, fontWeight: 600, fontFamily: "inherit", outline: "none", position: "sticky", top: 0, background: "#fff" }} />
+                      {savedMVCodes.filter(c => !editCodePickerSearch || c.routine_name.toLowerCase().includes(editCodePickerSearch.toLowerCase())).map(c => (
+                        <button key={c.id} onClick={() => { setEditingRoutineCode({ ...editingRoutineCode, name: c.routine_name, mvCode: c.mv_code }); setShowEditCodePicker(false); setEditCodePickerSearch(""); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", border: "none", borderBottom: "1px solid #f8fafc", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0C115B" }}>{c.routine_name}</span>
+                          <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{c.exercise_count} ex · ~{c.duration_minutes}m</span>
+                        </button>
+                      ))}
+                      {savedMVCodes.filter(c => !editCodePickerSearch || c.routine_name.toLowerCase().includes(editCodePickerSearch.toLowerCase())).length === 0 && (
+                        <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, padding: 12, margin: 0 }}>No matches</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ marginBottom: 12 }}>
                 <label style={S.label}>Routine Name</label>
                 <input style={S.input} value={editingRoutineCode.name} onChange={e => setEditingRoutineCode({ ...editingRoutineCode, name: e.target.value })} />
