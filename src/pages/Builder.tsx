@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, getThumbnailImages, getSavedTemplates, saveTemplate, supabase } from '../lib/supabase';
 import type { Exercise, ThumbnailImage, SavedTemplate } from '../lib/supabase';
 import ExerciseCard from '../components/ExerciseCard';
@@ -57,6 +58,18 @@ export default function Builder() {
   }, [exercises]);
 
   useEffect(() => { async function load() { try { setExercises(await getExercises()); try { setThumbLibrary(await getThumbnailImages()); } catch(e) {} try { setSavedTemplatesList(await getSavedTemplates()); } catch(e) {} } catch (err) { console.error(err); } finally { setLoading(false); } } load(); }, []);
+
+  // Auto-load template from Codes page navigation
+  const location = useLocation();
+  useEffect(() => {
+    const state = location.state as { templateText?: string; thumbnailImageUrl?: string } | null;
+    if (state?.templateText) {
+      loadTemplate(state.templateText);
+      if (state.thumbnailImageUrl) setThumbnailImageUrl(state.thumbnailImageUrl);
+      // Clear the state so it doesn't re-trigger
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
 
   const filtered = useMemo(() => {
     let result = exercises;
