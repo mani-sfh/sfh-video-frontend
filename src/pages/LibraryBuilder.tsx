@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ═══════════════════════════════════════════════
 // SFH Video Library Builder — MVP
@@ -347,6 +347,9 @@ export default function LibraryBuilder() {
   const [showAddModule, setShowAddModule] = useState(false);
   const [newModuleName, setNewModuleName] = useState("");
   const [addingRoutine, setAddingRoutine] = useState<{ moduleIndex: number; name: string; mvCode: string } | null>(null);
+  const [editingRoutineCode, setEditingRoutineCode] = useState<{ mi: number; ri: number; name: string; mvCode: string } | null>(null);
+  const [copiedRoutineId, setCopiedRoutineId] = useState<string | null>(null);
+  const [movingRoutine, setMovingRoutine] = useState<{ mi: number; ri: number } | null>(null);
   const [showOutput, setShowOutput] = useState(false);
   const [outputHTML, setOutputHTML] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
@@ -431,6 +434,70 @@ export default function LibraryBuilder() {
     updateProgram(activeProgram.id, { modules: mods });
   }
 
+  // Drag refs for modules
+  const dragModRef = useRef<number | null>(null);
+  const dragModOverRef = useRef<number | null>(null);
+
+  function handleModDragEnd() {
+    if (dragModRef.current === null || dragModOverRef.current === null || dragModRef.current === dragModOverRef.current) {
+      dragModRef.current = null; dragModOverRef.current = null; return;
+    }
+    const mods = [...activeProgram.modules];
+    const dragged = mods.splice(dragModRef.current, 1)[0];
+    mods.splice(dragModOverRef.current, 0, dragged);
+    updateProgram(activeProgram.id, { modules: mods });
+    dragModRef.current = null; dragModOverRef.current = null;
+  }
+
+  // Drag refs for routines (within same module)
+  const dragRoutineRef = useRef<{ mi: number; ri: number } | null>(null);
+  const dragRoutineOverRef = useRef<{ mi: number; ri: number } | null>(null);
+
+  function handleRoutineDragEnd() {
+    const from = dragRoutineRef.current;
+    const to = dragRoutineOverRef.current;
+    dragRoutineRef.current = null; dragRoutineOverRef.current = null;
+    if (!from || !to) return;
+    if (from.mi === to.mi && from.ri === to.ri) return;
+
+    if (from.mi === to.mi) {
+      // Same module — reorder
+      const mods = activeProgram.modules.map((m, i) => {
+        if (i !== from.mi) return m;
+        const routines = [...m.routines];
+        const dragged = routines.splice(from.ri, 1)[0];
+        routines.splice(to.ri, 0, dragged);
+        return { ...m, routines };
+      });
+      updateProgram(activeProgram.id, { modules: mods });
+    } else {
+      // Cross-module — move routine
+      const routine = activeProgram.modules[from.mi].routines[from.ri];
+      const mods = activeProgram.modules.map((m, i) => {
+        if (i === from.mi) return { ...m, routines: m.routines.filter((_, j) => j !== from.ri) };
+        if (i === to.mi) {
+          const routines = [...m.routines];
+          routines.splice(to.ri, 0, routine);
+          return { ...m, routines };
+        }
+        return m;
+      });
+      updateProgram(activeProgram.id, { modules: mods });
+    }
+  }
+
+  // Move routine to another module via dropdown
+  function moveRoutineToModule(fromMi: number, ri: number, toMi: number) {
+    if (fromMi === toMi) return;
+    const routine = activeProgram.modules[fromMi].routines[ri];
+    const mods = activeProgram.modules.map((m, i) => {
+      if (i === fromMi) return { ...m, routines: m.routines.filter((_, j) => j !== ri) };
+      if (i === toMi) return { ...m, routines: [...m.routines, routine] };
+      return m;
+    });
+    updateProgram(activeProgram.id, { modules: mods });
+  }
+
   // ─── Routine ops ───
   function addRoutine(mi: number, name: string, mvCode: string) {
     const mods = activeProgram.modules.map((m, i) => {
@@ -439,6 +506,24 @@ export default function LibraryBuilder() {
     });
     updateProgram(activeProgram.id, { modules: mods });
     setAddingRoutine(null);
+  }
+
+  function updateRoutineCode(mi: number, ri: number, name: string, mvCode: string) {
+    const mods = activeProgram.modules.map((m, i) => {
+      if (i !== mi) return m;
+      return { ...m, routines: m.routines.map((r, j) => j === ri ? { ...r, name, mvCode } : r) };
+    });
+    updateProgram(activeProgram.id, { modules: mods });
+    setEditingRoutineCode(null);
+  }
+
+  function copyRoutineCode(mi: number, ri: number) {
+    const code = activeProgram.modules[mi]?.routines[ri]?.mvCode;
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedRoutineId(`${mi}-${ri}`);
+      setTimeout(() => setCopiedRoutineId(null), 2000);
+    }).catch(() => {});
   }
 
   const [pendingDelete, setPendingDelete] = useState<{ mi: number; ri: number } | null>(null);
@@ -660,14 +745,11 @@ export default function LibraryBuilder() {
             {activeProgram.modules.map((mod, mi) => {
               const c = getColor(mi);
               return (
-                <div key={mod.id} style={{ ...S.card, padding: 0, overflow: "hidden", marginBottom: 10 }}>
+                <div key={mod.id} draggable onDragStart={() => { dragModRef.current = mi; }} onDragEnter={() => { dragModOverRef.current = mi; }} onDragEnd={handleModDragEnd} onDragOver={e => e.preventDefault()} style={{ ...S.card, padding: 0, overflow: "hidden", marginBottom: 10, cursor: "grab" }}>
                   {/* Module header */}
                   <div style={{ padding: "12px 16px", background: c.bg, borderLeft: `5px solid ${c.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={S.flex}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                        <button onClick={() => moveModule(mi, -1)} disabled={mi === 0} style={{ ...S.btnGhost, padding: 0, color: mi === 0 ? "#ccc" : c.text, fontSize: 16 }}>▲</button>
-                        <button onClick={() => moveModule(mi, 1)} disabled={mi === activeProgram.modules.length - 1} style={{ ...S.btnGhost, padding: 0, color: mi === activeProgram.modules.length - 1 ? "#ccc" : c.text, fontSize: 16 }}>▼</button>
-                      </div>
+                    <div style={{ ...S.flex, cursor: "grab" }}>
+                      <span style={{ color: c.text, fontSize: 14, marginRight: 4, cursor: "grab" }}>⠿</span>
                       <div>
                         <span style={{ fontSize: 16, fontWeight: 700, color: c.text, fontFamily: "'Petrona', Georgia, serif" }}>{mod.name}</span>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "#666", marginLeft: 8 }}>{mod.routines.length} routine{mod.routines.length !== 1 ? "s" : ""}</span>
@@ -687,13 +769,22 @@ export default function LibraryBuilder() {
                       <p style={{ textAlign: "center", color: "#cbd5e1", fontSize: 13, fontWeight: 600, padding: 16, margin: 0 }}>No routines yet</p>
                     )}
                     {mod.routines.map((r, ri) => (
-                      <div key={ri} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: ri % 2 === 0 ? "#fafbfc" : "#fff", borderRadius: 8, marginBottom: 4 }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                          <button onClick={() => moveRoutine(mi, ri, -1)} disabled={ri === 0} style={{ ...S.btnGhost, padding: 0, fontSize: 10, color: ri === 0 ? "#ddd" : "#666" }}>▲</button>
-                          <button onClick={() => moveRoutine(mi, ri, 1)} disabled={ri === mod.routines.length - 1} style={{ ...S.btnGhost, padding: 0, fontSize: 10, color: ri === mod.routines.length - 1 ? "#ddd" : "#666" }}>▼</button>
-                        </div>
+                      <div key={ri} draggable onDragStart={e => { e.stopPropagation(); dragRoutineRef.current = { mi, ri }; }} onDragEnter={e => { e.stopPropagation(); dragRoutineOverRef.current = { mi, ri }; }} onDragEnd={e => { e.stopPropagation(); handleRoutineDragEnd(); }} onDragOver={e => { e.preventDefault(); e.stopPropagation(); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", background: ri % 2 === 0 ? "#fafbfc" : "#fff", borderRadius: 8, marginBottom: 4, cursor: "grab" }}>
+                        <span style={{ color: "#ccc", fontSize: 12, cursor: "grab", flexShrink: 0 }}>⠿</span>
                         <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: "#0C115B" }}>{r.name}</span>
                         <span style={{ fontSize: 11, fontWeight: 600, color: r.mvCode ? "#16a34a" : "#f59e0b" }}>{r.mvCode ? "Code attached" : "No code"}</span>
+                        {r.mvCode && <button onClick={() => copyRoutineCode(mi, ri)} style={{ ...S.btnGhost, fontSize: 11, fontWeight: 700, color: copiedRoutineId === `${mi}-${ri}` ? "#16a34a" : "#0F766E", padding: "2px 8px" }}>{copiedRoutineId === `${mi}-${ri}` ? "✓ Copied" : "Copy"}</button>}
+                        <button onClick={() => setEditingRoutineCode({ mi, ri, name: r.name, mvCode: r.mvCode })} style={{ ...S.btnGhost, fontSize: 11, fontWeight: 700, color: "#6366f1", padding: "2px 8px" }}>Edit</button>
+                        {activeProgram.modules.length > 1 && (
+                          movingRoutine?.mi === mi && movingRoutine?.ri === ri ? (
+                            <select onChange={e => { const toMi = parseInt(e.target.value); if (!isNaN(toMi)) moveRoutineToModule(mi, ri, toMi); setMovingRoutine(null); }} onBlur={() => setMovingRoutine(null)} autoFocus defaultValue="" style={{ fontSize: 11, fontWeight: 600, padding: "2px 4px", borderRadius: 4, border: "1px solid #6366f1", cursor: "pointer", maxWidth: 120 }}>
+                              <option value="" disabled>Move to...</option>
+                              {activeProgram.modules.map((m, mIdx) => mIdx !== mi && <option key={m.id} value={mIdx}>{m.name}</option>)}
+                            </select>
+                          ) : (
+                            <button onClick={() => setMovingRoutine({ mi, ri })} style={{ ...S.btnGhost, fontSize: 11, fontWeight: 700, color: "#8b5cf6", padding: "2px 6px" }}>Move</button>
+                          )
+                        )}
                         <button onClick={() => removeRoutine(mi, ri)} style={{ ...S.btnGhost, color: pendingDelete?.mi === mi && pendingDelete?.ri === ri ? "#fff" : "#f87171", background: pendingDelete?.mi === mi && pendingDelete?.ri === ri ? "#dc2626" : "transparent", fontSize: pendingDelete?.mi === mi && pendingDelete?.ri === ri ? 11 : 14, borderRadius: 6, padding: pendingDelete?.mi === mi && pendingDelete?.ri === ri ? "4px 10px" : undefined, fontWeight: 700 }}>
                           {pendingDelete?.mi === mi && pendingDelete?.ri === ri ? "Confirm?" : "✕"}
                         </button>
@@ -735,6 +826,40 @@ export default function LibraryBuilder() {
               <button onClick={() => addRoutine(addingRoutine.moduleIndex, addingRoutine.name, addingRoutine.mvCode)} disabled={!addingRoutine.name.trim() || !addingRoutine.mvCode.trim()}
                 style={{ ...S.btnPrimary, flex: 1, opacity: addingRoutine.name.trim() && addingRoutine.mvCode.trim() ? 1 : 0.4 }}>
                 Add Routine
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Routine Modal */}
+      {editingRoutineCode && (
+        <div style={S.modal}>
+          <div style={S.modalBox}>
+            <div style={{ padding: 20, borderBottom: "1px solid #f1f5f9" }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0C115B" }}>Edit Routine</h3>
+              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Update the routine name or MV code.</p>
+            </div>
+            <div style={{ padding: 20, flex: 1, overflow: "auto" }}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.label}>Routine Name</label>
+                <input style={S.input} value={editingRoutineCode.name} onChange={e => setEditingRoutineCode({ ...editingRoutineCode, name: e.target.value })} />
+              </div>
+              <div>
+                <label style={S.label}>MV Code</label>
+                <textarea style={S.textarea} value={editingRoutineCode.mvCode} onChange={e => setEditingRoutineCode({ ...editingRoutineCode, mvCode: e.target.value })} />
+              </div>
+              {editingRoutineCode.mvCode && !editingRoutineCode.mvCode.includes("generateTracker") && (
+                <div style={{ background: "#fffbeb", border: "1px solid #fbbf24", borderRadius: 8, padding: 10, marginTop: 10, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
+                  No tracker function found. Make sure the MV code is complete.
+                </div>
+              )}
+            </div>
+            <div style={{ padding: 16, borderTop: "1px solid #f1f5f9", display: "flex", gap: 10 }}>
+              <button onClick={() => setEditingRoutineCode(null)} style={{ ...S.btnOutline("#94a3b8"), flex: 1 }}>Cancel</button>
+              <button onClick={() => updateRoutineCode(editingRoutineCode.mi, editingRoutineCode.ri, editingRoutineCode.name, editingRoutineCode.mvCode)} disabled={!editingRoutineCode.name.trim() || !editingRoutineCode.mvCode.trim()}
+                style={{ ...S.btnPrimary, flex: 1, opacity: editingRoutineCode.name.trim() && editingRoutineCode.mvCode.trim() ? 1 : 0.4 }}>
+                Save Changes
               </button>
             </div>
           </div>
