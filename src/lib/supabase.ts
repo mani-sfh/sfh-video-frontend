@@ -326,3 +326,21 @@ export async function updateSavedTemplate(id: string, data: { label?: string; te
     .eq('id', id);
   if (error) throw error;
 }
+
+// ── Vimeo Upload ──
+
+export async function uploadToVimeo(params: { videoUrl: string; title: string; description?: string }): Promise<{ vimeoId: string; vimeoLink: string; status: string }> {
+  if (!railwayUrl) {
+    throw new Error('Railway URL not configured.');
+  }
+  const response = await fetch(`${railwayUrl}/api/vimeo/upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Vimeo upload failed: ${response.status} — ${text}`);
+  }
+  return response.json();
+}
