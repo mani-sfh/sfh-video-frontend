@@ -5,7 +5,7 @@ import type { Exercise, ThumbnailImage, SavedTemplate } from '../lib/supabase';
 import ExerciseCard from '../components/ExerciseCard';
 import PlaylistItem from '../components/PlaylistItem';
 import TemplateModal from '../components/TemplateModal';
-import { Search, Download, Save, Trash2, Clock, ListChecks, X, Video, Loader2, CheckCircle2, XCircle, Play, FileText, Code, ChevronDown, Upload } from 'lucide-react';
+import { Search, Download, Save, Trash2, Clock, ListChecks, X, Video, Loader2, CheckCircle2, XCircle, Play, FileText, Code, ChevronDown, Upload, Minimize2, Maximize2 } from 'lucide-react';
 import VideoStoryboard from '../components/storyboard/VideoStoryboard';
 import { parseTemplate, mergeTemplateWithDb, generateTemplateText } from '../lib/templateParser';
 import type { TemplateMetadata } from '../lib/templateParser';
@@ -27,28 +27,30 @@ export default function Builder() {
   const [thumbSearch, setThumbSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [showMobilePlaylist, setShowMobilePlaylist] = useState(false);
-  const [videoJobId, setVideoJobId] = useState<string | null>(null);
-  const [videoJobStatus, setVideoJobStatus] = useState<string | null>(null);
-  const [videoOutputUrl, setVideoOutputUrl] = useState<string | null>(null);
-  const [videoThumbnailUrl, setVideoThumbnailUrl] = useState<string | null>(null);
-  const [videoError, setVideoError] = useState<string | null>(null);
-  const [videoProgress, setVideoProgress] = useState(0);
-  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
-  const [videoDuration, setVideoDuration] = useState<number | null>(null);
-  const [videoFileSize, setVideoFileSize] = useState<number | null>(null);
-  const [videoCurrentStep, setVideoCurrentStep] = useState<string | null>(null);
+  // Multi-job video system
+  const [videoJobs, setVideoJobs] = useState<Array<{
+    id: string; routineName: string; status: string; progress: number; currentStep: string | null;
+    error: string | null; outputUrl: string | null; thumbnailUrl: string | null;
+    duration: number | null; fileSize: number | null;
+    playlist: Exercise[]; templateData: TemplateMetadata | null;
+    thumbImageUrl: string; thumbBadge: string; thumbTitle: string; totalTime: number;
+    vimeoResult: { vimeoId: string; vimeoLink: string } | null; vimeoError: string | null;
+    vimeoUploading: boolean; minimized: boolean; showPlayer: boolean;
+    isDownloading: boolean; mvCopySuccess: boolean; copiedVimeoField: string | null;
+  }>>([]);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [selectedResolution, setSelectedResolution] = useState<'720p' | '1080p'>('720p');
   const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [showStoryboard, setShowStoryboard] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateText, setTemplateText] = useState('');
   const [templateData, setTemplateData] = useState<TemplateMetadata | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [vimeoUploading, setVimeoUploading] = useState(false);
-  const [vimeoResult, setVimeoResult] = useState<{ vimeoId: string; vimeoLink: string } | null>(null);
-  const [vimeoError, setVimeoError] = useState<string | null>(null);
-  const [copiedVimeoField, setCopiedVimeoField] = useState<string | null>(null);
   const [mvCopySuccess, setMvCopySuccess] = useState(false);
+
+  function updateJob(jobId: string, updates: Record<string, any>) {
+    setVideoJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...updates } : j));
+  }
+  const activeJob = videoJobs.find(j => j.id === activeJobId) || null;
 
   const codePrefixes = useMemo(() => {
     const prefixMap = new Map<string, number>();
@@ -136,81 +138,97 @@ export default function Builder() {
   async function startVideoGeneration() {
     setShowResolutionModal(false);
     try {
-      setVideoJobStatus('pending'); setVideoProgress(0); setVideoError(null); setVideoOutputUrl(null); setVideoCurrentStep('Initializing...');
       const job = await createVideoJob({ status: 'pending', routine_label: routineName || 'Custom Routine', exercise_ids: playlist.map((ex) => ex.id), resolution: selectedResolution });
-      setVideoJobId(job.id);
       const overrides: Record<string, { focus?: string; start_side?: string; position_type?: string }> = {};
       for (const ex of playlist) { const o: any = {}; if (ex.focus) o.focus = ex.focus; if (ex.start_side) o.start_side = ex.start_side; if (ex.position_type) o.position_type = ex.position_type; if (Object.keys(o).length > 0) overrides[ex.id] = o; }
+      const newJob = {
+        id: job.id, routineName: routineName || 'Custom Routine', status: 'pending', progress: 0, currentStep: 'Initializing...',
+        error: null, outputUrl: null, thumbnailUrl: null, duration: null, fileSize: null,
+        playlist: [...playlist], templateData, thumbImageUrl: thumbnailImageUrl, thumbBadge: thumbnailBadge, thumbTitle: thumbnailTitle, totalTime: getTotalTime(),
+        vimeoResult: null, vimeoError: null, vimeoUploading: false, minimized: false, showPlayer: false,
+        isDownloading: false, mvCopySuccess: false, copiedVimeoField: null,
+      };
+      setVideoJobs(prev => [...prev, newJob]);
+      setActiveJobId(job.id);
       await generateRoutineVideo({ jobId: job.id, routineName: routineName || 'Custom Routine', exerciseIds: playlist.map((ex) => ex.id), resolution: selectedResolution, totalDuration: `~${getTotalTime()} minutes`, equipment: templateData?.equipment, subtitle: templateData?.subtitle, level: templateData?.level, condition: templateData?.condition, thumbnailImageUrl: thumbnailImageUrl || undefined, thumbnailBadge: thumbnailBadge || undefined, thumbnailTitle: thumbnailTitle || undefined, exerciseOverrides: Object.keys(overrides).length > 0 ? overrides : undefined });
       startPolling(job.id);
-    } catch (err) { setVideoError((err as Error).message); setVideoJobStatus('failed'); }
+    } catch (err) {
+      // If job was created, update it; otherwise just alert
+      if (activeJobId) updateJob(activeJobId, { error: (err as Error).message, status: 'failed' });
+    }
   }
 
   function startPolling(jobId: string) {
     const interval = setInterval(async () => {
       try {
-        const job = await getVideoJob(jobId); setVideoJobStatus(job.status); setVideoCurrentStep(job.current_step || 'Processing...');
-        if (job.progress_percentage != null) setVideoProgress(job.progress_percentage);
-        if (job.status === 'completed') { setVideoProgress(100); setVideoOutputUrl(job.output_url || null); setVideoThumbnailUrl(job.thumbnail_url || null); setVideoDuration(job.duration_seconds || null); setVideoFileSize(job.file_size_mb || null); clearInterval(interval); }
-        else if (job.status === 'failed') { setVideoError(job.error_message || 'Failed'); clearInterval(interval); }
-      } catch (err) { setVideoError('Status check failed'); setVideoJobStatus('failed'); clearInterval(interval); }
+        const job = await getVideoJob(jobId);
+        updateJob(jobId, { status: job.status, currentStep: job.current_step || 'Processing...' });
+        if (job.progress_percentage != null) updateJob(jobId, { progress: job.progress_percentage });
+        if (job.status === 'completed') { updateJob(jobId, { progress: 100, outputUrl: job.output_url || null, thumbnailUrl: job.thumbnail_url || null, duration: job.duration_seconds || null, fileSize: job.file_size_mb || null }); clearInterval(interval); }
+        else if (job.status === 'failed') { updateJob(jobId, { error: job.error_message || 'Failed' }); clearInterval(interval); }
+      } catch (err) { updateJob(jobId, { error: 'Status check failed', status: 'failed' }); clearInterval(interval); }
     }, 3000);
   }
 
-  function closeVideoModal() { setVideoJobId(null); setVideoJobStatus(null); setVideoProgress(0); setVideoError(null); setVideoOutputUrl(null); setVideoThumbnailUrl(null); setShowVideoPlayer(false); setVideoDuration(null); setVideoFileSize(null); setVideoCurrentStep(null); setVimeoResult(null); setVimeoError(null); setCopiedVimeoField(null); }
+  function closeJob(jobId: string) { setVideoJobs(prev => prev.filter(j => j.id !== jobId)); if (activeJobId === jobId) setActiveJobId(null); }
 
-  async function handleDownloadVideo() {
-    if (!videoOutputUrl) return; setIsDownloading(true);
-    try { const r = await fetch(videoOutputUrl); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = (routineName || 'Video').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '.mp4'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); }
-    catch (err) { window.open(videoOutputUrl, '_blank'); } finally { setIsDownloading(false); }
+  async function handleDownloadVideo(jobId: string) {
+    const j = videoJobs.find(x => x.id === jobId); if (!j?.outputUrl) return;
+    updateJob(jobId, { isDownloading: true });
+    try { const r = await fetch(j.outputUrl); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = (j.routineName || 'Video').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '.mp4'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); }
+    catch (err) { window.open(j.outputUrl, '_blank'); } finally { updateJob(jobId, { isDownloading: false }); }
   }
 
-  function handleBuildAnother() { closeVideoModal(); setPlaylist([]); setRoutineName(''); }
+  function handleBuildAnother(jobId: string) { updateJob(jobId, { minimized: true }); setActiveJobId(null); setPlaylist([]); setRoutineName(''); }
 
-  async function handleUploadToVimeo() {
-    if (!videoOutputUrl) return;
-    setVimeoUploading(true); setVimeoError(null); setVimeoResult(null);
+  async function handleUploadToVimeo(jobId: string) {
+    const j = videoJobs.find(x => x.id === jobId); if (!j?.outputUrl) return;
+    updateJob(jobId, { vimeoUploading: true, vimeoError: null, vimeoResult: null });
     try {
       const result = await uploadToVimeo({
-        videoUrl: videoOutputUrl,
-        title: routineName || 'SFH Routine',
-        description: `Senior Fitness Hub follow-along routine: ${routineName || 'Custom Routine'}. ${templateData?.subtitle || ''}`.trim(),
-        thumbnailUrl: videoThumbnailUrl || thumbnailImageUrl || undefined,
+        videoUrl: j.outputUrl, title: j.routineName || 'SFH Routine',
+        description: `Senior Fitness Hub follow-along routine: ${j.routineName || 'Custom Routine'}. ${j.templateData?.subtitle || ''}`.trim(),
+        thumbnailUrl: j.thumbnailUrl || j.thumbImageUrl || undefined,
       });
-      setVimeoResult({ vimeoId: result.vimeoId, vimeoLink: result.vimeoLink });
-    } catch (err) {
-      setVimeoError((err as Error).message);
-    } finally {
-      setVimeoUploading(false);
-    }
+      updateJob(jobId, { vimeoResult: { vimeoId: result.vimeoId, vimeoLink: result.vimeoLink } });
+    } catch (err) { updateJob(jobId, { vimeoError: (err as Error).message }); }
+    finally { updateJob(jobId, { vimeoUploading: false }); }
   }
 
+  function handleCopyMVCodeForJob(jobId: string) {
+    const j = videoJobs.find(x => x.id === jobId); if (!j) return;
+    const mvCode = generateMVCode(j.playlist, j.routineName, j.totalTime, j.templateData, j.vimeoResult?.vimeoId || undefined);
+    const templateForSave = generateTemplateText(j.playlist, j.routineName, j.totalTime, j.templateData);
+    navigator.clipboard.writeText(mvCode).then(() => {
+      updateJob(jobId, { mvCopySuccess: true });
+      setTimeout(() => updateJob(jobId, { mvCopySuccess: false }), 2500);
+    }).catch(() => {
+      const b = new Blob([mvCode], { type: 'text/html' }); const u = URL.createObjectURL(b); const a = document.createElement('a');
+      a.href = u; a.download = (j.routineName || 'MV_Code').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '_mv.html';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
+    });
+    saveMVCode({
+      routine_name: j.routineName, exercise_count: j.playlist.length, duration_minutes: j.totalTime, mv_code: mvCode, template_text: templateForSave,
+      thumbnail_image_url: j.thumbImageUrl || undefined, thumbnail_badge: j.thumbBadge || undefined, thumbnail_title: j.thumbTitle || undefined,
+      video_url: j.outputUrl || undefined, generated_thumbnail_url: j.thumbnailUrl || undefined,
+    }).catch((err) => console.error('MV code save failed:', err));
+  }
+
+  // Keep old handleCopyMVCode for the playlist sidebar button (before video generation)
   function handleCopyMVCode() {
     if (playlist.length === 0) return;
-    const mvCode = generateMVCode(playlist, routineName || 'Custom Routine', getTotalTime(), templateData, vimeoResult?.vimeoId || undefined);
+    const mvCode = generateMVCode(playlist, routineName || 'Custom Routine', getTotalTime(), templateData);
     const templateForSave = generateTemplateText(playlist, routineName, getTotalTime(), templateData);
     navigator.clipboard.writeText(mvCode).then(() => {
-      setMvCopySuccess(true);
-      setTimeout(() => setMvCopySuccess(false), 2500);
+      setMvCopySuccess(true); setTimeout(() => setMvCopySuccess(false), 2500);
     }).catch(() => {
-      const b = new Blob([mvCode], { type: 'text/html' });
-      const u = URL.createObjectURL(b);
-      const a = document.createElement('a');
+      const b = new Blob([mvCode], { type: 'text/html' }); const u = URL.createObjectURL(b); const a = document.createElement('a');
       a.href = u; a.download = (routineName || 'MV_Code').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '_mv.html';
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
     });
-    // Auto-save to Supabase
     saveMVCode({
-      routine_name: routineName || 'Custom Routine',
-      exercise_count: playlist.length,
-      duration_minutes: getTotalTime(),
-      mv_code: mvCode,
-      template_text: templateForSave,
-      thumbnail_image_url: thumbnailImageUrl || undefined,
-      thumbnail_badge: thumbnailBadge || undefined,
-      thumbnail_title: thumbnailTitle || undefined,
-      video_url: videoOutputUrl || undefined,
-      generated_thumbnail_url: videoThumbnailUrl || undefined,
+      routine_name: routineName || 'Custom Routine', exercise_count: playlist.length, duration_minutes: getTotalTime(), mv_code: mvCode, template_text: templateForSave,
+      thumbnail_image_url: thumbnailImageUrl || undefined, thumbnail_badge: thumbnailBadge || undefined, thumbnail_title: thumbnailTitle || undefined,
     }).catch((err) => console.error('MV code save failed:', err));
   }
 
@@ -303,41 +321,64 @@ export default function Builder() {
 
       {showStoryboard && <VideoStoryboard playlist={playlist} routineName={routineName || 'Custom Routine'} totalDuration={`~${getTotalTime()} minutes`} equipment={templateData?.equipment} subtitle={templateData?.subtitle} level={templateData?.level} onApprove={handleStoryboardApprove} onClose={() => setShowStoryboard(false)} />}
 
-      {videoJobId && (
+      {/* Minimized job pills */}
+      {videoJobs.filter(j => j.minimized || j.id !== activeJobId).map((j, idx) => (
+        <div key={j.id} className="fixed z-50 cursor-pointer" style={{ bottom: 16 + idx * 60, right: 16 }} onClick={() => { updateJob(j.id, { minimized: false }); setActiveJobId(j.id); }}>
+          <div className="bg-white rounded-xl shadow-2xl border-2 border-navy/20 p-3 flex items-center gap-3 min-w-[280px] hover:shadow-lg transition-shadow">
+            {(j.status === 'pending' || j.status === 'processing') ? (<>
+              <Loader2 className="w-5 h-5 animate-spin text-crimson flex-shrink-0" />
+              <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><div className="w-full h-1.5 bg-gray-200 rounded-full mt-1"><div className="h-full bg-crimson rounded-full transition-all" style={{ width: `${j.progress}%` }}></div></div></div>
+              <span className="text-xs font-bold text-navy flex-shrink-0">{j.progress}%</span>
+            </>) : j.status === 'completed' ? (<>
+              <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+              <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-green-600 font-semibold m-0">Ready — click to open</p></div>
+            </>) : j.status === 'failed' ? (<>
+              <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-red-500 font-semibold m-0">Failed</p></div>
+            </>) : null}
+            <Maximize2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <button onClick={(e) => { e.stopPropagation(); closeJob(j.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><X className="w-4 h-4" /></button>
+          </div>
+        </div>
+      ))}
+
+      {/* Active job modal */}
+      {activeJob && !activeJob.minimized && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
-            {(videoJobStatus === 'pending' || videoJobStatus === 'processing') ? (
+            {(activeJob.status === 'pending' || activeJob.status === 'processing') ? (
               <div className="p-6">
-                <div className="bg-gradient-to-r from-navy to-crimson text-white p-4 rounded-t-xl -m-6 mb-6"><h2 className="text-xl font-bold m-0 font-petrona">Building Your Routine Video</h2></div>
-                <h3 className="text-lg font-bold text-crimson m-0 mb-2 font-petrona">{routineName || 'Custom Routine'}</h3>
-                <p className="text-sm text-gray-600 font-semibold mb-4">{playlist.length} exercises • ~{getTotalTime()} min</p>
-                <div className="mb-4"><div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-crimson transition-all duration-500 rounded-full" style={{ width: `${videoProgress}%` }}></div></div><p className="text-center text-sm font-bold text-navy mt-2">{videoProgress}%</p></div>
-                <div className="text-center"><div className="flex items-center justify-center gap-2 text-gray-500 mb-2"><Loader2 className="w-5 h-5 animate-spin text-crimson" /><p className="text-sm font-semibold">{videoCurrentStep || 'Processing...'}</p></div><p className="text-xs text-gray-400 font-semibold">This may take a few minutes...</p></div>
+                <div className="bg-gradient-to-r from-navy to-crimson text-white p-4 rounded-t-xl -m-6 mb-6 flex items-center justify-between"><h2 className="text-xl font-bold m-0 font-petrona">Building Your Routine Video</h2><button onClick={() => { updateJob(activeJob.id, { minimized: true }); setActiveJobId(null); }} className="text-white/70 hover:text-white cursor-pointer bg-transparent border-none p-1" title="Minimize"><Minimize2 className="w-5 h-5" /></button></div>
+                <h3 className="text-lg font-bold text-crimson m-0 mb-2 font-petrona">{activeJob.routineName}</h3>
+                <p className="text-sm text-gray-600 font-semibold mb-4">{activeJob.playlist.length} exercises • ~{activeJob.totalTime} min</p>
+                <div className="mb-4"><div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-crimson transition-all duration-500 rounded-full" style={{ width: `${activeJob.progress}%` }}></div></div><p className="text-center text-sm font-bold text-navy mt-2">{activeJob.progress}%</p></div>
+                <div className="text-center"><div className="flex items-center justify-center gap-2 text-gray-500 mb-2"><Loader2 className="w-5 h-5 animate-spin text-crimson" /><p className="text-sm font-semibold">{activeJob.currentStep || 'Processing...'}</p></div><p className="text-xs text-gray-400 font-semibold">This may take a few minutes...</p></div>
               </div>
-            ) : videoJobStatus === 'completed' ? (
+            ) : activeJob.status === 'completed' ? (
               <div className="p-6">
-                <div className="text-center mb-6"><CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-3" /><h2 className="text-2xl font-bold text-navy m-0 mb-2 font-petrona">Video Ready!</h2><h3 className="text-lg font-bold text-crimson m-0 mb-2 font-petrona">{routineName}</h3><p className="text-sm text-gray-600 font-semibold">{videoDuration && `${Math.floor(videoDuration / 60)}:${String(videoDuration % 60).padStart(2, '0')}`}{videoFileSize && ` • ${videoFileSize.toFixed(1)} MB`}</p></div>
-                {showVideoPlayer && videoOutputUrl && <div className="mb-4"><video src={videoOutputUrl} controls className="w-full rounded-lg" style={{ maxHeight: '300px' }} /></div>}
+                <div className="text-center mb-6"><CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-3" /><h2 className="text-2xl font-bold text-navy m-0 mb-2 font-petrona">Video Ready!</h2><h3 className="text-lg font-bold text-crimson m-0 mb-2 font-petrona">{activeJob.routineName}</h3><p className="text-sm text-gray-600 font-semibold">{activeJob.duration && `${Math.floor(activeJob.duration / 60)}:${String(activeJob.duration % 60).padStart(2, '0')}`}{activeJob.fileSize && ` • ${activeJob.fileSize.toFixed(1)} MB`}</p></div>
+                {activeJob.showPlayer && activeJob.outputUrl && <div className="mb-4"><video src={activeJob.outputUrl} controls className="w-full rounded-lg" style={{ maxHeight: '300px' }} /></div>}
                 <div className="space-y-2">
-                  <button onClick={() => setShowVideoPlayer(!showVideoPlayer)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-navy border-2 border-navy hover:bg-navy/5 cursor-pointer bg-white min-h-[44px]"><Play className="w-5 h-5" /> {showVideoPlayer ? 'Hide' : 'Preview'}</button>
-                  {videoOutputUrl && <button onClick={handleDownloadVideo} disabled={isDownloading} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg cursor-pointer border-none min-h-[44px] disabled:opacity-60">{isDownloading ? <><Loader2 className="w-5 h-5 animate-spin" /> Downloading...</> : <><Download className="w-5 h-5" /> Download MP4</>}</button>}
-                  {videoOutputUrl && !vimeoResult && <button onClick={handleUploadToVimeo} disabled={vimeoUploading} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-teal hover:bg-teal/90 cursor-pointer border-none min-h-[44px] disabled:opacity-60">{vimeoUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> Uploading to Vimeo...</> : <><Upload className="w-5 h-5" /> Upload to Vimeo</>}</button>}
-                  {vimeoResult && <div className="w-full py-3 px-4 rounded-xl bg-green-50 border-2 border-green-200 text-center"><p className="text-sm font-bold text-green-700 m-0">✓ Uploaded to Vimeo</p><p className="text-xs text-green-600 font-semibold m-0 mt-1">ID: {vimeoResult.vimeoId} · <a href={vimeoResult.vimeoLink} target="_blank" rel="noopener noreferrer" className="text-teal underline">View on Vimeo</a></p><div className="flex gap-2 justify-center mt-2"><button onClick={() => { navigator.clipboard.writeText(vimeoResult.vimeoId); setCopiedVimeoField('id'); setTimeout(() => setCopiedVimeoField(null), 2000); }} className="text-xs font-bold text-navy bg-white border border-navy/20 rounded px-2 py-1 cursor-pointer hover:bg-navy/5">{copiedVimeoField === 'id' ? '✓ Copied' : 'Copy ID'}</button><button onClick={() => { navigator.clipboard.writeText(`https://player.vimeo.com/video/${vimeoResult.vimeoId}`); setCopiedVimeoField('url'); setTimeout(() => setCopiedVimeoField(null), 2000); }} className="text-xs font-bold text-navy bg-white border border-navy/20 rounded px-2 py-1 cursor-pointer hover:bg-navy/5">{copiedVimeoField === 'url' ? '✓ Copied' : 'Copy Player URL'}</button></div></div>}
-                  {vimeoError && <p className="text-xs text-red-500 font-semibold text-center m-0">{vimeoError}</p>}
-                  <button onClick={handleCopyMVCode} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border-2 border-purple-700 text-purple-700 hover:bg-purple-50 cursor-pointer bg-white min-h-[44px]"><Code className="w-5 h-5" /> {mvCopySuccess ? 'Copied to Clipboard!' : vimeoResult ? 'Copy MV Code (Vimeo + Tracker)' : 'Copy MV Code (Video + Tracker)'}</button>
-                  {!vimeoResult && videoOutputUrl && <p className="text-xs text-gray-400 font-semibold text-center m-0">Upload to Vimeo first for the Vimeo player embed in the MV code</p>}
-                  <button onClick={handleBuildAnother} className="w-full py-2.5 rounded-xl font-bold text-sm text-gray-600 hover:text-navy cursor-pointer bg-transparent border-none min-h-[44px]">Build Another</button>
+                  <button onClick={() => updateJob(activeJob.id, { showPlayer: !activeJob.showPlayer })} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-navy border-2 border-navy hover:bg-navy/5 cursor-pointer bg-white min-h-[44px]"><Play className="w-5 h-5" /> {activeJob.showPlayer ? 'Hide' : 'Preview'}</button>
+                  {activeJob.outputUrl && <button onClick={() => handleDownloadVideo(activeJob.id)} disabled={activeJob.isDownloading} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg cursor-pointer border-none min-h-[44px] disabled:opacity-60">{activeJob.isDownloading ? <><Loader2 className="w-5 h-5 animate-spin" /> Downloading...</> : <><Download className="w-5 h-5" /> Download MP4</>}</button>}
+                  {activeJob.outputUrl && !activeJob.vimeoResult && <button onClick={() => handleUploadToVimeo(activeJob.id)} disabled={activeJob.vimeoUploading} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-teal hover:bg-teal/90 cursor-pointer border-none min-h-[44px] disabled:opacity-60">{activeJob.vimeoUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> Uploading to Vimeo...</> : <><Upload className="w-5 h-5" /> Upload to Vimeo</>}</button>}
+                  {activeJob.vimeoResult && <div className="w-full py-3 px-4 rounded-xl bg-green-50 border-2 border-green-200 text-center"><p className="text-sm font-bold text-green-700 m-0">✓ Uploaded to Vimeo</p><p className="text-xs text-green-600 font-semibold m-0 mt-1">ID: {activeJob.vimeoResult.vimeoId} · <a href={activeJob.vimeoResult.vimeoLink} target="_blank" rel="noopener noreferrer" className="text-teal underline">View on Vimeo</a></p><div className="flex gap-2 justify-center mt-2"><button onClick={() => { navigator.clipboard.writeText(activeJob.vimeoResult!.vimeoId); updateJob(activeJob.id, { copiedVimeoField: 'id' }); setTimeout(() => updateJob(activeJob.id, { copiedVimeoField: null }), 2000); }} className="text-xs font-bold text-navy bg-white border border-navy/20 rounded px-2 py-1 cursor-pointer hover:bg-navy/5">{activeJob.copiedVimeoField === 'id' ? '✓ Copied' : 'Copy ID'}</button><button onClick={() => { navigator.clipboard.writeText(`https://player.vimeo.com/video/${activeJob.vimeoResult!.vimeoId}`); updateJob(activeJob.id, { copiedVimeoField: 'url' }); setTimeout(() => updateJob(activeJob.id, { copiedVimeoField: null }), 2000); }} className="text-xs font-bold text-navy bg-white border border-navy/20 rounded px-2 py-1 cursor-pointer hover:bg-navy/5">{activeJob.copiedVimeoField === 'url' ? '✓ Copied' : 'Copy Player URL'}</button></div></div>}
+                  {activeJob.vimeoError && <p className="text-xs text-red-500 font-semibold text-center m-0">{activeJob.vimeoError}</p>}
+                  <button onClick={() => handleCopyMVCodeForJob(activeJob.id)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border-2 border-purple-700 text-purple-700 hover:bg-purple-50 cursor-pointer bg-white min-h-[44px]"><Code className="w-5 h-5" /> {activeJob.mvCopySuccess ? 'Copied to Clipboard!' : activeJob.vimeoResult ? 'Copy MV Code (Vimeo + Tracker)' : 'Copy MV Code (Video + Tracker)'}</button>
+                  {!activeJob.vimeoResult && activeJob.outputUrl && <p className="text-xs text-gray-400 font-semibold text-center m-0">Upload to Vimeo first for the Vimeo player embed in the MV code</p>}
+                  <button onClick={() => handleBuildAnother(activeJob.id)} className="w-full py-2.5 rounded-xl font-bold text-sm text-gray-600 hover:text-navy cursor-pointer bg-transparent border-none min-h-[44px]">Build Another</button>
                 </div>
               </div>
-            ) : videoJobStatus === 'failed' ? (
+            ) : activeJob.status === 'failed' ? (
               <div className="p-6">
-                <div className="text-center mb-6"><XCircle className="w-16 h-16 text-red-500 mx-auto mb-3" /><h2 className="text-2xl font-bold text-navy m-0 mb-2 font-petrona">Generation Failed</h2><p className="text-sm text-red-600 font-semibold">{videoError || 'An error occurred.'}</p></div>
-                <div className="space-y-2"><button onClick={handleGenerateVideo} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg cursor-pointer border-none min-h-[44px]"><Video className="w-5 h-5" /> Try Again</button><button onClick={closeVideoModal} className="w-full py-2.5 rounded-xl font-bold text-sm text-gray-600 hover:text-navy cursor-pointer bg-transparent border-none min-h-[44px]">Close</button></div>
+                <div className="text-center mb-6"><XCircle className="w-16 h-16 text-red-500 mx-auto mb-3" /><h2 className="text-2xl font-bold text-navy m-0 mb-2 font-petrona">Generation Failed</h2><p className="text-sm text-red-600 font-semibold">{activeJob.error || 'An error occurred.'}</p></div>
+                <div className="space-y-2"><button onClick={() => closeJob(activeJob.id)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg cursor-pointer border-none min-h-[44px]">Close</button></div>
               </div>
             ) : null}
           </div>
         </div>
       )}
+
 
       {showTemplateModal && <TemplateModal templateText={templateText} onTemplateTextChange={setTemplateText} onLoad={() => loadTemplate(templateText)} onClose={() => { setShowTemplateModal(false); setTemplateText(''); }} savedTemplates={savedTemplatesList} />}
 
