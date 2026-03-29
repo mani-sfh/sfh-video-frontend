@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, getThumbnailImages, getSavedTemplates, saveTemplate, uploadToVimeo, supabase } from '../lib/supabase';
 import type { Exercise, ThumbnailImage, SavedTemplate } from '../lib/supabase';
@@ -39,6 +39,8 @@ export default function Builder() {
     isDownloading: boolean; mvCopySuccess: boolean; copiedVimeoField: string | null;
   }>>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [pillsPos, setPillsPos] = useState<{ x: number; y: number } | null>(null);
+  const pillsDrag = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [selectedResolution, setSelectedResolution] = useState<'720p' | '1080p'>('720p');
   const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [showStoryboard, setShowStoryboard] = useState(false);
@@ -322,26 +324,62 @@ export default function Builder() {
 
       {showStoryboard && <VideoStoryboard playlist={playlist} routineName={routineName || 'Custom Routine'} totalDuration={`~${getTotalTime()} minutes`} equipment={templateData?.equipment} subtitle={templateData?.subtitle} level={templateData?.level} onApprove={handleStoryboardApprove} onClose={() => setShowStoryboard(false)} />}
 
-      {/* Minimized job pills */}
-      {videoJobs.filter(j => j.minimized || j.id !== activeJobId).map((j, idx) => (
-        <div key={j.id} className="fixed z-50 cursor-pointer" style={{ bottom: 16 + idx * 60, right: 16 }} onClick={() => { updateJob(j.id, { minimized: false }); setActiveJobId(j.id); }}>
-          <div className="bg-white rounded-xl shadow-2xl border-2 border-navy/20 p-3 flex items-center gap-3 min-w-[280px] hover:shadow-lg transition-shadow">
-            {(j.status === 'pending' || j.status === 'processing') ? (<>
-              <Loader2 className="w-5 h-5 animate-spin text-crimson flex-shrink-0" />
-              <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><div className="w-full h-1.5 bg-gray-200 rounded-full mt-1"><div className="h-full bg-crimson rounded-full transition-all" style={{ width: `${j.progress}%` }}></div></div></div>
-              <span className="text-xs font-bold text-navy flex-shrink-0">{j.progress}%</span>
-            </>) : j.status === 'completed' ? (<>
-              <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-              <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-green-600 font-semibold m-0">Ready — click to open</p></div>
-            </>) : j.status === 'failed' ? (<>
-              <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-red-500 font-semibold m-0">Failed</p></div>
-            </>) : null}
-            <Maximize2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <button onClick={(e) => { e.stopPropagation(); closeJob(j.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><X className="w-4 h-4" /></button>
+      {/* Minimized job pills — draggable container */}
+      {videoJobs.filter(j => j.minimized || j.id !== activeJobId).length > 0 && (
+        <div className="fixed z-50" style={{ right: pillsPos ? undefined : 16, bottom: pillsPos ? undefined : 16, left: pillsPos ? pillsPos.x : undefined, top: pillsPos ? pillsPos.y : undefined }}
+          onMouseDown={(e) => {
+            if ((e.target as HTMLElement).closest('button')) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            pillsDrag.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top };
+            const onMove = (ev: MouseEvent) => {
+              if (!pillsDrag.current) return;
+              const dx = ev.clientX - pillsDrag.current.startX;
+              const dy = ev.clientY - pillsDrag.current.startY;
+              setPillsPos({ x: pillsDrag.current.origX + dx, y: pillsDrag.current.origY + dy });
+            };
+            const onUp = () => { pillsDrag.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          }}
+          onTouchStart={(e) => {
+            if ((e.target as HTMLElement).closest('button')) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const t = e.touches[0];
+            pillsDrag.current = { startX: t.clientX, startY: t.clientY, origX: rect.left, origY: rect.top };
+            const onMove = (ev: TouchEvent) => {
+              if (!pillsDrag.current) return;
+              const dx = ev.touches[0].clientX - pillsDrag.current.startX;
+              const dy = ev.touches[0].clientY - pillsDrag.current.startY;
+              setPillsPos({ x: pillsDrag.current.origX + dx, y: pillsDrag.current.origY + dy });
+            };
+            const onEnd = () => { pillsDrag.current = null; window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd); };
+            window.addEventListener('touchmove', onMove);
+            window.addEventListener('touchend', onEnd);
+          }}
+        >
+          <div className="flex flex-col gap-2 cursor-move">
+            {videoJobs.filter(j => j.minimized || j.id !== activeJobId).map((j) => (
+              <div key={j.id} className="cursor-pointer" onClick={() => { updateJob(j.id, { minimized: false }); setActiveJobId(j.id); }}>
+                <div className="bg-white rounded-xl shadow-2xl border-2 border-navy/20 p-3 flex items-center gap-3 min-w-[280px] hover:shadow-lg transition-shadow">
+                  {(j.status === 'pending' || j.status === 'processing') ? (<>
+                    <Loader2 className="w-5 h-5 animate-spin text-crimson flex-shrink-0" />
+                    <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><div className="w-full h-1.5 bg-gray-200 rounded-full mt-1"><div className="h-full bg-crimson rounded-full transition-all" style={{ width: `${j.progress}%` }}></div></div></div>
+                    <span className="text-xs font-bold text-navy flex-shrink-0">{j.progress}%</span>
+                  </>) : j.status === 'completed' ? (<>
+                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-green-600 font-semibold m-0">Ready — click to open</p></div>
+                  </>) : j.status === 'failed' ? (<>
+                    <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-red-500 font-semibold m-0">Failed</p></div>
+                  </>) : null}
+                  <Maximize2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <button onClick={(e) => { e.stopPropagation(); closeJob(j.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><X className="w-4 h-4" /></button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      ))}
+      )}
 
       {/* Active job modal */}
       {activeJob && !activeJob.minimized && (
