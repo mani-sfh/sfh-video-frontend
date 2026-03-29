@@ -182,6 +182,7 @@ export interface MVCode {
   thumbnail_title?: string;
   video_url?: string;
   generated_thumbnail_url?: string;
+  vimeo_id?: string;
   sort_order?: number;
   created_at: string;
 }
@@ -225,7 +226,7 @@ export async function deleteMVCode(id: string) {
   if (error) throw error;
 }
 
-export async function updateMVCode(id: string, data: { sort_order?: number }) {
+export async function updateMVCode(id: string, data: { sort_order?: number; mv_code?: string; vimeo_id?: string; video_url?: string }) {
   const { error } = await supabase
     .from('mv_codes')
     .update(data)
