@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate } from '../lib/supabase';
 import type { MVCode, ThumbnailImage, SavedTemplate } from '../lib/supabase';
-import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus } from 'lucide-react';
+import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play } from 'lucide-react';
 
 function useDragReorder<T extends {id:string}>(items: T[], setItems: (items: T[]) => void, onPersist: (items: T[]) => Promise<void>) {
   const dragItem = useRef<number|null>(null);
@@ -19,6 +20,7 @@ function useDragReorder<T extends {id:string}>(items: T[], setItems: (items: T[]
 }
 
 export default function SavedCodes() {
+  const navigate = useNavigate();
   const [codes, setCodes] = useState<MVCode[]>([]);
   const [templates, setTemplates] = useState<SavedTemplate[]>([]);
   const [thumbImages, setThumbImages] = useState<ThumbnailImage[]>([]);
@@ -184,6 +186,7 @@ export default function SavedCodes() {
                     <div className="border-t border-gray-100 px-3 py-2.5 bg-gray-50">
                       <p className="text-xs text-gray-400 mb-2">Saved {new Date(t.created_at).toLocaleDateString()}{t.thumbnail_image_url&&' · Has thumbnail'}</p>
                       <div className="flex gap-2 flex-wrap">
+                        <button onClick={()=>{navigate('/',{state:{templateText:t.template_text,thumbnailImageUrl:t.thumbnail_image_url||''}});}} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs text-white bg-gradient-to-r from-navy to-crimson cursor-pointer border-none"><Play className="w-3 h-3"/>Load in Builder</button>
                         <button onClick={()=>doCopy(t.template_text,t.id,'tpl')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-crimson text-crimson hover:bg-crimson/5 cursor-pointer bg-white">{copiedId===t.id+'tpl'?<><CheckCircle2 className="w-3 h-3"/>Copied</>:<><Copy className="w-3 h-3"/>Copy Template</>}</button>
                         {t.thumbnail_image_url&&<button onClick={()=>doCopy(t.thumbnail_image_url!,t.id,'thu')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-purple-600 text-purple-600 hover:bg-purple-50 cursor-pointer bg-white">{copiedId===t.id+'thu'?'✓ Copied':'Copy Thumb URL'}</button>}
                         <button onClick={()=>startEditTemplate(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-gray-200 text-gray-500 hover:border-navy cursor-pointer bg-white"><Pencil className="w-3 h-3"/>Edit</button>
@@ -230,6 +233,7 @@ export default function SavedCodes() {
                   <p className="text-xs text-gray-400 mb-2">Saved {new Date(code.created_at).toLocaleDateString()} at {new Date(code.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</p>
                   <div className="flex gap-2 flex-wrap">
                     <button onClick={()=>doCopy(code.mv_code,code.id,'mv')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs text-white bg-gradient-to-r from-navy to-crimson cursor-pointer border-none">{copiedId===code.id+'mv'?<><CheckCircle2 className="w-3 h-3"/>Copied</>:<><Copy className="w-3 h-3"/>MV Code</>}</button>
+                    {code.template_text&&<button onClick={()=>{navigate('/',{state:{templateText:code.template_text,thumbnailImageUrl:code.thumbnail_image_url||''}});}} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-navy text-navy hover:bg-navy/5 cursor-pointer bg-white"><Play className="w-3 h-3"/>Rebuild</button>}
                     {code.template_text&&<button onClick={()=>doCopy(code.template_text!,code.id,'tpl')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-crimson text-crimson cursor-pointer bg-white">{copiedId===code.id+'tpl'?'✓ Copied':'Template'}</button>}
                     {code.video_url&&<button onClick={()=>doCopy(code.video_url!,code.id,'vid')} className="text-xs font-bold text-teal cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'vid'?'✓':'Video URL'}</button>}
                     {code.thumbnail_image_url&&<button onClick={()=>doCopy(code.thumbnail_image_url!,code.id,'img')} className="text-xs font-bold text-purple-600 cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'img'?'✓':'Overlay URL'}</button>}
