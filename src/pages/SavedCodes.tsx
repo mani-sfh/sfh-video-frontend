@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getMVCodes, deleteMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, getSavedTemplates, deleteSavedTemplate } from '../lib/supabase';
+import { getMVCodes, deleteMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate } from '../lib/supabase';
 import type { MVCode, ThumbnailImage, SavedTemplate } from '../lib/supabase';
-import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ImagePlus, Image } from 'lucide-react';
+import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ImagePlus, Image, Pencil, Check, ArrowUp, ArrowDown } from 'lucide-react';
 
 export default function SavedCodes() {
   const [codes, setCodes] = useState<MVCode[]>([]);
@@ -12,12 +12,14 @@ export default function SavedCodes() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedType, setExpandedType] = useState<'mv' | 'template' | null>(null);
 
-  // Image Library state
   const [newLabel, setNewLabel] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [savingImage, setSavingImage] = useState(false);
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  const [editingImageLabel, setEditingImageLabel] = useState('');
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editingTemplateLabel, setEditingTemplateLabel] = useState('');
 
-  // Accordion state
   const [showImages, setShowImages] = useState(true);
   const [showTemplates, setShowTemplates] = useState(true);
   const [showCodes, setShowCodes] = useState(true);
@@ -55,12 +57,14 @@ export default function SavedCodes() {
     try { await deleteMVCode(id); setCodes((prev) => prev.filter((c) => c.id !== id)); } catch (err) { console.error(err); }
   }
 
+  // ── Image handlers ──
   async function handleAddImage() {
     if (!newLabel.trim() || !newUrl.trim()) return;
     setSavingImage(true);
     try {
-      const saved = await saveThumbnailImage({ label: newLabel.trim(), image_url: newUrl.trim() });
-      setThumbImages((prev) => [saved, ...prev]);
+      const maxOrder = thumbImages.reduce((max, img) => Math.max(max, img.sort_order || 0), 0);
+      const saved = await saveThumbnailImage({ label: newLabel.trim(), image_url: newUrl.trim(), sort_order: maxOrder + 1 });
+      setThumbImages((prev) => [...prev, saved]);
       setNewLabel(''); setNewUrl('');
     } catch (err) { console.error(err); }
     finally { setSavingImage(false); }
@@ -71,9 +75,40 @@ export default function SavedCodes() {
     try { await deleteThumbnailImage(id); setThumbImages((prev) => prev.filter((img) => img.id !== id)); } catch (err) { console.error(err); }
   }
 
+  async function handleSaveImageLabel(id: string) {
+    if (!editingImageLabel.trim()) return;
+    try {
+      await updateThumbnailImage(id, { label: editingImageLabel.trim() });
+      setThumbImages((prev) => prev.map((img) => img.id === id ? { ...img, label: editingImageLabel.trim() } : img));
+      setEditingImageId(null);
+    } catch (err) { console.error(err); }
+  }
+
+  async function handleMoveImage(index: number, direction: number) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= thumbImages.length) return;
+    const updated = [...thumbImages];
+    [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
+    setThumbImages(updated);
+    try {
+      await updateThumbnailImage(updated[index].id, { sort_order: index });
+      await updateThumbnailImage(updated[newIndex].id, { sort_order: newIndex });
+    } catch (err) { console.error(err); }
+  }
+
+  // ── Template handlers ──
   async function handleDeleteTemplate(id: string) {
     if (!confirm('Delete this template?')) return;
     try { await deleteSavedTemplate(id); setTemplates((prev) => prev.filter((t) => t.id !== id)); } catch (err) { console.error(err); }
+  }
+
+  async function handleSaveTemplateLabel(id: string) {
+    if (!editingTemplateLabel.trim()) return;
+    try {
+      await updateSavedTemplate(id, { label: editingTemplateLabel.trim() });
+      setTemplates((prev) => prev.map((t) => t.id === id ? { ...t, label: editingTemplateLabel.trim() } : t));
+      setEditingTemplateId(null);
+    } catch (err) { console.error(err); }
   }
 
   function toggleExpand(id: string, type: 'mv' | 'template') {
@@ -113,14 +148,27 @@ export default function SavedCodes() {
               </div>
             </div>
             {thumbImages.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {thumbImages.map((img) => (
-                  <div key={img.id} className="bg-white rounded-xl border border-gray-200 p-3 flex gap-3">
-                    <img src={img.image_url} alt={img.label} className="w-16 h-16 rounded-lg object-cover flex-shrink-0 bg-gray-100" />
+              <div className="space-y-2">
+                {thumbImages.map((img, idx) => (
+                  <div key={img.id} className="bg-white rounded-xl border border-gray-200 p-3 flex gap-3 items-center">
+                    <div className="flex flex-col gap-0.5 flex-shrink-0">
+                      <button onClick={() => handleMoveImage(idx, -1)} disabled={idx === 0} className={`w-6 h-6 flex items-center justify-center rounded bg-transparent border-none cursor-pointer ${idx === 0 ? 'text-gray-200' : 'text-gray-400 hover:text-navy'}`}><ArrowUp className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => handleMoveImage(idx, 1)} disabled={idx === thumbImages.length - 1} className={`w-6 h-6 flex items-center justify-center rounded bg-transparent border-none cursor-pointer ${idx === thumbImages.length - 1 ? 'text-gray-200' : 'text-gray-400 hover:text-navy'}`}><ArrowDown className="w-3.5 h-3.5" /></button>
+                    </div>
+                    <img src={img.image_url} alt={img.label} className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-gray-100" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-navy text-sm truncate">{img.label}</p>
+                      {editingImageId === img.id ? (
+                        <div className="flex gap-1 items-center">
+                          <input type="text" value={editingImageLabel} onChange={(e) => setEditingImageLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSaveImageLabel(img.id); if (e.key === 'Escape') setEditingImageId(null); }} className="flex-1 px-2 py-1 rounded border-2 border-navy text-sm font-semibold focus:outline-none" autoFocus />
+                          <button onClick={() => handleSaveImageLabel(img.id)} className="text-teal hover:text-teal/80 cursor-pointer bg-transparent border-none p-0"><Check className="w-4 h-4" /></button>
+                        </div>
+                      ) : (
+                        <p className="font-bold text-navy text-sm truncate">{img.label}
+                          <button onClick={() => { setEditingImageId(img.id); setEditingImageLabel(img.label); }} className="ml-1 text-gray-300 hover:text-navy cursor-pointer bg-transparent border-none p-0 align-middle"><Pencil className="w-3 h-3" /></button>
+                        </p>
+                      )}
                       <p className="text-xs text-gray-400 truncate mt-0.5">{img.image_url}</p>
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-2 mt-1">
                         <button onClick={() => { navigator.clipboard.writeText(img.image_url); setCopiedId('img-' + img.id); setTimeout(() => setCopiedId(null), 2000); }} className="text-xs font-bold text-teal hover:text-teal/80 cursor-pointer bg-transparent border-none p-0">
                           {copiedId === 'img-' + img.id ? '✓ Copied!' : 'Copy URL'}
                         </button>
@@ -151,7 +199,16 @@ export default function SavedCodes() {
               <div key={t.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="p-4 flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-bold text-navy truncate">{t.label}</h3>
+                    {editingTemplateId === t.id ? (
+                      <div className="flex gap-1 items-center">
+                        <input type="text" value={editingTemplateLabel} onChange={(e) => setEditingTemplateLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSaveTemplateLabel(t.id); if (e.key === 'Escape') setEditingTemplateId(null); }} className="flex-1 px-2 py-1 rounded border-2 border-navy text-sm font-bold focus:outline-none" autoFocus />
+                        <button onClick={() => handleSaveTemplateLabel(t.id)} className="text-teal hover:text-teal/80 cursor-pointer bg-transparent border-none p-0"><Check className="w-4 h-4" /></button>
+                      </div>
+                    ) : (
+                      <h3 className="text-base font-bold text-navy truncate">{t.label}
+                        <button onClick={() => { setEditingTemplateId(t.id); setEditingTemplateLabel(t.label); }} className="ml-1 text-gray-300 hover:text-navy cursor-pointer bg-transparent border-none p-0 align-middle"><Pencil className="w-3 h-3" /></button>
+                      </h3>
+                    )}
                     <p className="text-xs text-gray-400 mt-1">
                       {t.exercise_count ? `${t.exercise_count} exercises · ` : ''}
                       Saved {new Date(t.created_at).toLocaleDateString()}
@@ -171,7 +228,7 @@ export default function SavedCodes() {
                 </div>
                 {expandedId === t.id && expandedType === 'template' && (
                   <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
-                    <pre className="text-xs text-gray-600 whitespace-pre-wrap break-all max-h-64 overflow-y-auto font-mono">{t.template_text.substring(0, 3000)}{t.template_text.length > 3000 ? '\n\n... (truncated preview)' : ''}</pre>
+                    <pre className="text-xs text-gray-600 whitespace-pre-wrap break-all max-h-64 overflow-y-auto font-mono">{t.template_text.substring(0, 3000)}{t.template_text.length > 3000 ? '\n\n... (truncated)' : ''}</pre>
                   </div>
                 )}
               </div>
@@ -245,7 +302,7 @@ export default function SavedCodes() {
                 </div>
                 {expandedId === code.id && expandedType === 'mv' && (
                   <div className="border-t border-gray-100 px-5 py-3 bg-gray-50">
-                    <pre className="text-xs text-gray-600 whitespace-pre-wrap break-all max-h-64 overflow-y-auto font-mono">{code.mv_code.substring(0, 2000)}{code.mv_code.length > 2000 ? '\n\n... (truncated preview)' : ''}</pre>
+                    <pre className="text-xs text-gray-600 whitespace-pre-wrap break-all max-h-64 overflow-y-auto font-mono">{code.mv_code.substring(0, 2000)}{code.mv_code.length > 2000 ? '\n\n... (truncated)' : ''}</pre>
                   </div>
                 )}
               </div>
