@@ -36,7 +36,7 @@ export default function Builder() {
     thumbImageUrl: string; thumbBadge: string; thumbTitle: string; totalTime: number;
     vimeoResult: { vimeoId: string; vimeoLink: string } | null; vimeoError: string | null;
     vimeoUploading: boolean; minimized: boolean; showPlayer: boolean;
-    isDownloading: boolean; mvCopySuccess: boolean; copiedVimeoField: string | null;
+    isDownloading: boolean; mvCopySuccess: boolean; copiedVimeoField: string | null; mvCodeSaved: boolean;
   }>>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [pillsPos, setPillsPos] = useState<{ x: number; y: number } | null>(null);
@@ -148,7 +148,7 @@ export default function Builder() {
         error: null, outputUrl: null, thumbnailUrl: null, duration: null, fileSize: null,
         playlist: [...playlist], templateData, thumbImageUrl: thumbnailImageUrl, thumbBadge: thumbnailBadge, thumbTitle: thumbnailTitle, totalTime: getTotalTime(),
         vimeoResult: null, vimeoError: null, vimeoUploading: false, minimized: false, showPlayer: false,
-        isDownloading: false, mvCopySuccess: false, copiedVimeoField: null,
+        isDownloading: false, mvCopySuccess: false, copiedVimeoField: null, mvCodeSaved: false,
       };
       setVideoJobs(prev => [...prev, newJob]);
       setActiveJobId(job.id);
@@ -209,15 +209,19 @@ export default function Builder() {
       a.href = u; a.download = (j.routineName || 'MV_Code').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '_mv.html';
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
     });
-    saveMVCode({
-      routine_name: j.routineName, exercise_count: j.playlist.length, duration_minutes: j.totalTime, mv_code: mvCode, template_text: templateForSave,
-      thumbnail_image_url: j.thumbImageUrl || undefined, thumbnail_badge: j.thumbBadge || undefined, thumbnail_title: j.thumbTitle || undefined,
-      video_url: j.outputUrl || undefined, generated_thumbnail_url: j.thumbnailUrl || undefined,
-      vimeo_id: j.vimeoResult?.vimeoId || undefined,
-    }).catch((err) => console.error('MV code save failed:', err));
+    // Auto-save to Supabase (only once per job, or re-save if vimeo was added)
+    if (!j.mvCodeSaved || j.vimeoResult) {
+      saveMVCode({
+        routine_name: j.routineName, exercise_count: j.playlist.length, duration_minutes: j.totalTime, mv_code: mvCode, template_text: templateForSave,
+        thumbnail_image_url: j.thumbImageUrl || undefined, thumbnail_badge: j.thumbBadge || undefined, thumbnail_title: j.thumbTitle || undefined,
+        video_url: j.outputUrl || undefined, generated_thumbnail_url: j.thumbnailUrl || undefined,
+        vimeo_id: j.vimeoResult?.vimeoId || undefined,
+      }).then(() => updateJob(jobId, { mvCodeSaved: true })).catch((err) => console.error('MV code save failed:', err));
+    }
   }
 
   // Keep old handleCopyMVCode for the playlist sidebar button (before video generation)
+  const mvSaving = useRef(false);
   function handleCopyMVCode() {
     if (playlist.length === 0) return;
     const mvCode = generateMVCode(playlist, routineName || 'Custom Routine', getTotalTime(), templateData);
@@ -229,10 +233,13 @@ export default function Builder() {
       a.href = u; a.download = (routineName || 'MV_Code').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '_mv.html';
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
     });
-    saveMVCode({
-      routine_name: routineName || 'Custom Routine', exercise_count: playlist.length, duration_minutes: getTotalTime(), mv_code: mvCode, template_text: templateForSave,
-      thumbnail_image_url: thumbnailImageUrl || undefined, thumbnail_badge: thumbnailBadge || undefined, thumbnail_title: thumbnailTitle || undefined,
-    }).catch((err) => console.error('MV code save failed:', err));
+    if (!mvSaving.current) {
+      mvSaving.current = true;
+      saveMVCode({
+        routine_name: routineName || 'Custom Routine', exercise_count: playlist.length, duration_minutes: getTotalTime(), mv_code: mvCode, template_text: templateForSave,
+        thumbnail_image_url: thumbnailImageUrl || undefined, thumbnail_badge: thumbnailBadge || undefined, thumbnail_title: thumbnailTitle || undefined,
+      }).catch((err) => console.error('MV code save failed:', err)).finally(() => { setTimeout(() => { mvSaving.current = false; }, 3000); });
+    }
   }
 
   if (loading) return (<div className="text-center py-20"><div className="animate-spin w-10 h-10 border-4 border-navy border-t-transparent rounded-full mx-auto mb-4"></div><p className="text-gray-500 font-semibold">Loading exercise library...</p></div>);
