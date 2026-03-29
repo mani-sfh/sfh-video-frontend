@@ -47,6 +47,7 @@ export default function Builder() {
   const [vimeoUploading, setVimeoUploading] = useState(false);
   const [vimeoResult, setVimeoResult] = useState<{ vimeoId: string; vimeoLink: string } | null>(null);
   const [vimeoError, setVimeoError] = useState<string | null>(null);
+  const [copiedVimeoField, setCopiedVimeoField] = useState<string | null>(null);
   const [mvCopySuccess, setMvCopySuccess] = useState(false);
 
   const codePrefixes = useMemo(() => {
@@ -156,7 +157,7 @@ export default function Builder() {
     }, 3000);
   }
 
-  function closeVideoModal() { setVideoJobId(null); setVideoJobStatus(null); setVideoProgress(0); setVideoError(null); setVideoOutputUrl(null); setVideoThumbnailUrl(null); setShowVideoPlayer(false); setVideoDuration(null); setVideoFileSize(null); setVideoCurrentStep(null); setVimeoResult(null); setVimeoError(null); }
+  function closeVideoModal() { setVideoJobId(null); setVideoJobStatus(null); setVideoProgress(0); setVideoError(null); setVideoOutputUrl(null); setVideoThumbnailUrl(null); setShowVideoPlayer(false); setVideoDuration(null); setVideoFileSize(null); setVideoCurrentStep(null); setVimeoResult(null); setVimeoError(null); setCopiedVimeoField(null); }
 
   async function handleDownloadVideo() {
     if (!videoOutputUrl) return; setIsDownloading(true);
@@ -174,6 +175,7 @@ export default function Builder() {
         videoUrl: videoOutputUrl,
         title: routineName || 'SFH Routine',
         description: `Senior Fitness Hub follow-along routine: ${routineName || 'Custom Routine'}. ${templateData?.subtitle || ''}`.trim(),
+        thumbnailUrl: videoThumbnailUrl || thumbnailImageUrl || undefined,
       });
       setVimeoResult({ vimeoId: result.vimeoId, vimeoLink: result.vimeoLink });
     } catch (err) {
@@ -185,7 +187,7 @@ export default function Builder() {
 
   function handleCopyMVCode() {
     if (playlist.length === 0) return;
-    const mvCode = generateMVCode(playlist, routineName || 'Custom Routine', getTotalTime(), templateData);
+    const mvCode = generateMVCode(playlist, routineName || 'Custom Routine', getTotalTime(), templateData, vimeoResult?.vimeoId || undefined);
     const templateForSave = generateTemplateText(playlist, routineName, getTotalTime(), templateData);
     navigator.clipboard.writeText(mvCode).then(() => {
       setMvCopySuccess(true);
@@ -320,9 +322,10 @@ export default function Builder() {
                   <button onClick={() => setShowVideoPlayer(!showVideoPlayer)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-navy border-2 border-navy hover:bg-navy/5 cursor-pointer bg-white min-h-[44px]"><Play className="w-5 h-5" /> {showVideoPlayer ? 'Hide' : 'Preview'}</button>
                   {videoOutputUrl && <button onClick={handleDownloadVideo} disabled={isDownloading} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg cursor-pointer border-none min-h-[44px] disabled:opacity-60">{isDownloading ? <><Loader2 className="w-5 h-5 animate-spin" /> Downloading...</> : <><Download className="w-5 h-5" /> Download MP4</>}</button>}
                   {videoOutputUrl && !vimeoResult && <button onClick={handleUploadToVimeo} disabled={vimeoUploading} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-teal hover:bg-teal/90 cursor-pointer border-none min-h-[44px] disabled:opacity-60">{vimeoUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> Uploading to Vimeo...</> : <><Upload className="w-5 h-5" /> Upload to Vimeo</>}</button>}
-                  {vimeoResult && <div className="w-full py-3 rounded-xl bg-green-50 border-2 border-green-200 text-center"><p className="text-sm font-bold text-green-700 m-0">✓ Uploaded to Vimeo</p><p className="text-xs text-green-600 font-semibold m-0 mt-1">ID: {vimeoResult.vimeoId} · <a href={vimeoResult.vimeoLink} target="_blank" rel="noopener noreferrer" className="text-teal underline">View on Vimeo</a></p></div>}
+                  {vimeoResult && <div className="w-full py-3 px-4 rounded-xl bg-green-50 border-2 border-green-200 text-center"><p className="text-sm font-bold text-green-700 m-0">✓ Uploaded to Vimeo</p><p className="text-xs text-green-600 font-semibold m-0 mt-1">ID: {vimeoResult.vimeoId} · <a href={vimeoResult.vimeoLink} target="_blank" rel="noopener noreferrer" className="text-teal underline">View on Vimeo</a></p><div className="flex gap-2 justify-center mt-2"><button onClick={() => { navigator.clipboard.writeText(vimeoResult.vimeoId); setCopiedVimeoField('id'); setTimeout(() => setCopiedVimeoField(null), 2000); }} className="text-xs font-bold text-navy bg-white border border-navy/20 rounded px-2 py-1 cursor-pointer hover:bg-navy/5">{copiedVimeoField === 'id' ? '✓ Copied' : 'Copy ID'}</button><button onClick={() => { navigator.clipboard.writeText(`https://player.vimeo.com/video/${vimeoResult.vimeoId}`); setCopiedVimeoField('url'); setTimeout(() => setCopiedVimeoField(null), 2000); }} className="text-xs font-bold text-navy bg-white border border-navy/20 rounded px-2 py-1 cursor-pointer hover:bg-navy/5">{copiedVimeoField === 'url' ? '✓ Copied' : 'Copy Player URL'}</button></div></div>}
                   {vimeoError && <p className="text-xs text-red-500 font-semibold text-center m-0">{vimeoError}</p>}
-                  <button onClick={handleCopyMVCode} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border-2 border-purple-700 text-purple-700 hover:bg-purple-50 cursor-pointer bg-white min-h-[44px]"><Code className="w-5 h-5" /> {mvCopySuccess ? 'Copied to Clipboard!' : 'Copy MV Code (Video + Tracker)'}</button>
+                  <button onClick={handleCopyMVCode} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border-2 border-purple-700 text-purple-700 hover:bg-purple-50 cursor-pointer bg-white min-h-[44px]"><Code className="w-5 h-5" /> {mvCopySuccess ? 'Copied to Clipboard!' : vimeoResult ? 'Copy MV Code (Vimeo + Tracker)' : 'Copy MV Code (Video + Tracker)'}</button>
+                  {!vimeoResult && videoOutputUrl && <p className="text-xs text-gray-400 font-semibold text-center m-0">Upload to Vimeo first for the Vimeo player embed in the MV code</p>}
                   <button onClick={handleBuildAnother} className="w-full py-2.5 rounded-xl font-bold text-sm text-gray-600 hover:text-navy cursor-pointer bg-transparent border-none min-h-[44px]">Build Another</button>
                 </div>
               </div>
