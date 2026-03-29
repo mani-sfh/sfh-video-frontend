@@ -229,10 +229,11 @@ export interface ThumbnailImage {
   id: string;
   label: string;
   image_url: string;
+  sort_order?: number;
   created_at: string;
 }
 
-export async function saveThumbnailImage(data: { label: string; image_url: string }) {
+export async function saveThumbnailImage(data: { label: string; image_url: string; sort_order?: number }) {
   const { data: result, error } = await supabase
     .from('thumbnail_images')
     .insert(data)
@@ -242,10 +243,19 @@ export async function saveThumbnailImage(data: { label: string; image_url: strin
   return result;
 }
 
+export async function updateThumbnailImage(id: string, data: { label?: string; sort_order?: number }) {
+  const { error } = await supabase
+    .from('thumbnail_images')
+    .update(data)
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function getThumbnailImages(): Promise<ThumbnailImage[]> {
   const { data, error } = await supabase
     .from('thumbnail_images')
     .select('*')
+    .order('sort_order', { ascending: true })
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
@@ -292,6 +302,14 @@ export async function deleteSavedTemplate(id: string) {
   const { error } = await supabase
     .from('saved_templates')
     .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateSavedTemplate(id: string, data: { label?: string; template_text?: string }) {
+  const { error } = await supabase
+    .from('saved_templates')
+    .update(data)
     .eq('id', id);
   if (error) throw error;
 }
