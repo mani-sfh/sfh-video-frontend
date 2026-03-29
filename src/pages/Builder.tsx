@@ -93,7 +93,7 @@ export default function Builder() {
       const b = new Blob([t], { type: 'text/plain' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = (routineName || 'Template').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '.txt'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
     });
     // Auto-save template to Supabase
-    saveTemplate({ label: routineName || 'Custom Routine', template_text: t, exercise_count: playlist.length })
+    saveTemplate({ label: routineName || 'Custom Routine', template_text: t, exercise_count: playlist.length, thumbnail_image_url: thumbnailImageUrl || undefined })
       .then((saved) => { setSavedTemplatesList((prev) => [saved, ...prev]); })
       .catch((err) => console.error('Template save failed:', err));
   }
