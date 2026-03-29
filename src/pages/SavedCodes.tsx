@@ -250,13 +250,15 @@ export default function SavedCodes() {
                     {code.thumbnail_title&&<span className="font-bold text-purple-700 text-[10px]">{code.thumbnail_title}</span>}
                   </div>
                   <p className="text-xs text-gray-400 mb-2">Saved {new Date(code.created_at).toLocaleDateString()} at {new Date(code.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</p>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap mb-2">
                     <button onClick={()=>doCopy(code.mv_code,code.id,'mv')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs text-white bg-gradient-to-r from-navy to-crimson cursor-pointer border-none">{copiedId===code.id+'mv'?<><CheckCircle2 className="w-3 h-3"/>Copied</>:<><Copy className="w-3 h-3"/>MV Code</>}</button>
                     {code.template_text&&<button onClick={()=>{navigate('/',{state:{templateText:code.template_text,thumbnailImageUrl:code.thumbnail_image_url||''}});}} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-navy text-navy hover:bg-navy/5 cursor-pointer bg-white"><Play className="w-3 h-3"/>Rebuild</button>}
                     {code.template_text&&<button onClick={()=>doCopy(code.template_text!,code.id,'tpl')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-crimson text-crimson cursor-pointer bg-white">{copiedId===code.id+'tpl'?'✓ Copied':'Template'}</button>}
+                  </div>
+                  <div className="flex gap-3 flex-wrap items-center">
                     {code.video_url&&<button onClick={()=>doCopy(code.video_url!,code.id,'vid')} className="text-xs font-bold text-teal cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'vid'?'✓':'Video URL'}</button>}
                     {code.thumbnail_image_url&&<button onClick={()=>doCopy(code.thumbnail_image_url!,code.id,'img')} className="text-xs font-bold text-purple-600 cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'img'?'✓':'Overlay URL'}</button>}
-                    {code.generated_thumbnail_url&&<a href={code.generated_thumbnail_url} download target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-orange-600 no-underline">↓ PNG</a>}
+                    {code.generated_thumbnail_url&&<a href={code.generated_thumbnail_url} download target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-orange-600 no-underline">↓ Thumbnail PNG</a>}
                     <button onClick={()=>togglePreview(code.id,'mv')} className="text-xs font-bold text-purple-700 cursor-pointer bg-transparent border-none p-0 flex items-center gap-0.5">{previewId===code.id&&previewType==='mv'?<ChevronUp className="w-3 h-3"/>:<ChevronDown className="w-3 h-3"/>}Preview</button>
                     <button onClick={()=>handleDeleteCode(code.id)} className="text-xs font-bold text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><Trash2 className="w-3 h-3"/></button>
                   </div>
