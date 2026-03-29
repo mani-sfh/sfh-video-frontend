@@ -182,6 +182,7 @@ export interface MVCode {
   thumbnail_title?: string;
   video_url?: string;
   generated_thumbnail_url?: string;
+  sort_order?: number;
   created_at: string;
 }
 
@@ -210,6 +211,7 @@ export async function getMVCodes(): Promise<MVCode[]> {
   const { data, error } = await supabase
     .from('mv_codes')
     .select('*')
+    .order('sort_order', { ascending: true })
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
@@ -219,6 +221,14 @@ export async function deleteMVCode(id: string) {
   const { error } = await supabase
     .from('mv_codes')
     .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateMVCode(id: string, data: { sort_order?: number }) {
+  const { error } = await supabase
+    .from('mv_codes')
+    .update(data)
     .eq('id', id);
   if (error) throw error;
 }
@@ -277,10 +287,11 @@ export interface SavedTemplate {
   template_text: string;
   exercise_count?: number;
   thumbnail_image_url?: string;
+  sort_order?: number;
   created_at: string;
 }
 
-export async function saveTemplate(data: { label: string; template_text: string; exercise_count?: number; thumbnail_image_url?: string }) {
+export async function saveTemplate(data: { label: string; template_text: string; exercise_count?: number; thumbnail_image_url?: string; sort_order?: number }) {
   const { data: result, error } = await supabase
     .from('saved_templates')
     .insert(data)
@@ -294,6 +305,7 @@ export async function getSavedTemplates(): Promise<SavedTemplate[]> {
   const { data, error } = await supabase
     .from('saved_templates')
     .select('*')
+    .order('sort_order', { ascending: true })
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
@@ -307,7 +319,7 @@ export async function deleteSavedTemplate(id: string) {
   if (error) throw error;
 }
 
-export async function updateSavedTemplate(id: string, data: { label?: string; template_text?: string; thumbnail_image_url?: string }) {
+export async function updateSavedTemplate(id: string, data: { label?: string; template_text?: string; thumbnail_image_url?: string; sort_order?: number }) {
   const { error } = await supabase
     .from('saved_templates')
     .update(data)
