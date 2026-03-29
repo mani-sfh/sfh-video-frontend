@@ -243,7 +243,7 @@ export async function saveThumbnailImage(data: { label: string; image_url: strin
   return result;
 }
 
-export async function updateThumbnailImage(id: string, data: { label?: string; sort_order?: number }) {
+export async function updateThumbnailImage(id: string, data: { label?: string; image_url?: string; sort_order?: number }) {
   const { error } = await supabase
     .from('thumbnail_images')
     .update(data)
@@ -276,10 +276,11 @@ export interface SavedTemplate {
   label: string;
   template_text: string;
   exercise_count?: number;
+  thumbnail_image_url?: string;
   created_at: string;
 }
 
-export async function saveTemplate(data: { label: string; template_text: string; exercise_count?: number }) {
+export async function saveTemplate(data: { label: string; template_text: string; exercise_count?: number; thumbnail_image_url?: string }) {
   const { data: result, error } = await supabase
     .from('saved_templates')
     .insert(data)
@@ -306,7 +307,7 @@ export async function deleteSavedTemplate(id: string) {
   if (error) throw error;
 }
 
-export async function updateSavedTemplate(id: string, data: { label?: string; template_text?: string }) {
+export async function updateSavedTemplate(id: string, data: { label?: string; template_text?: string; thumbnail_image_url?: string }) {
   const { error } = await supabase
     .from('saved_templates')
     .update(data)
