@@ -52,7 +52,7 @@ export default function SavedCodes() {
   const [editTplThumb, setEditTplThumb] = useState('');
   const [showEditTplPicker, setShowEditTplPicker] = useState(false);
 
-  const [showImages, setShowImages] = useState(true);
+  const [showImages, setShowImages] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showCodes, setShowCodes] = useState(false);
   const [editingVimeoId, setEditingVimeoId] = useState<string | null>(null);
