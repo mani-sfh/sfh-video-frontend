@@ -198,6 +198,7 @@ export async function saveMVCode(data: {
   thumbnail_title?: string;
   video_url?: string;
   generated_thumbnail_url?: string;
+  vimeo_id?: string;
 }) {
   const { data: result, error } = await supabase
     .from('mv_codes')
