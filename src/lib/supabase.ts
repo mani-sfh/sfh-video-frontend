@@ -127,6 +127,14 @@ export async function updateVideoJob(jobId: string, updates: { vimeo_id?: string
   if (error) throw error;
 }
 
+export async function deleteVideoJob(jobId: string) {
+  const { error } = await supabase
+    .from('video_jobs')
+    .delete()
+    .eq('id', jobId);
+  if (error) throw error;
+}
+
 export async function generateRoutineVideo(params: {
   jobId: string;
   routineName: string;
