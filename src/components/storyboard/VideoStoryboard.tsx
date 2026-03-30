@@ -14,6 +14,7 @@ interface VideoStoryboardProps {
   equipment?: string[];
   subtitle?: string;
   level?: string;
+  condition?: string;
   onApprove: () => void;
   onClose: () => void;
 }
@@ -24,30 +25,30 @@ interface SlideItem {
   render: () => JSX.Element;
 }
 
-export default function VideoStoryboard({ playlist, routineName, totalDuration, equipment, subtitle, level, onApprove, onClose }: VideoStoryboardProps) {
+export default function VideoStoryboard({ playlist, routineName, totalDuration, equipment, subtitle, level, condition, onApprove, onClose }: VideoStoryboardProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const slides: SlideItem[] = [];
 
-  // Intro slides
+  // Intro slides (durations match server videoGenerator.js)
   slides.push({
     label: 'Title Card',
-    duration: '8s',
-    render: () => <TitleCardSlide routineName={routineName} exerciseCount={playlist.length} totalDuration={totalDuration} subtitle={subtitle} level={level} />
+    duration: '6s',
+    render: () => <TitleCardSlide routineName={routineName} exerciseCount={playlist.length} totalDuration={totalDuration} subtitle={subtitle} level={level} condition={condition} />
   });
   slides.push({
     label: 'Tracker Reminder',
-    duration: '5s',
+    duration: '7s',
     render: () => <TrackerReminderSlide />
   });
   slides.push({
     label: 'Equipment',
-    duration: '10s',
+    duration: '6s',
     render: () => <EquipmentSlide equipment={equipment} />
   });
   slides.push({
     label: "Let's Start",
-    duration: '5s',
+    duration: '6s',
     render: () => <LetsStartSlide />
   });
 
@@ -63,7 +64,7 @@ export default function VideoStoryboard({ playlist, routineName, totalDuration, 
 
     slides.push({
       label: `Ex ${num}: Watch`,
-      duration: '5s',
+      duration: '6s',
       render: () => <WatchLearnSlide exercise={ex} exerciseNumber={num} totalExercises={total} />
     });
     slides.push({
@@ -73,7 +74,7 @@ export default function VideoStoryboard({ playlist, routineName, totalDuration, 
     });
     slides.push({
       label: `Ex ${num}: Your Turn`,
-      duration: '5s',
+      duration: isBilateral ? '6s' : '5s',
       render: () => <YourTurnSlide exercise={ex} exerciseNumber={num} totalExercises={total} />
     });
 
@@ -85,7 +86,7 @@ export default function VideoStoryboard({ playlist, routineName, totalDuration, 
       });
       slides.push({
         label: `Ex ${num}: Switch`,
-        duration: '3s',
+        duration: '6s',
         render: () => <SwitchSidesSlide exerciseName={ex.name} exerciseNumber={num} totalExercises={total} secondSide={secondSide} />
       });
       slides.push({
@@ -101,18 +102,19 @@ export default function VideoStoryboard({ playlist, routineName, totalDuration, 
       });
     }
 
+    const isLast = !nextEx;
     slides.push({
       label: `Ex ${num}: Complete`,
-      duration: '3s',
-      render: () => <ExerciseCompleteSlide exerciseName={ex.name} nextExerciseName={nextEx?.name} exerciseNumber={num} totalExercises={total} />
+      duration: isLast ? '5s' : '4s',
+      render: () => <ExerciseCompleteSlide exerciseName={ex.name} nextExerciseName={nextEx?.name} exerciseNumber={num} totalExercises={total} nextExercisePosition={nextEx?.position_type} />
     });
   }
 
   // Outro
   slides.push({
     label: 'Outro',
-    duration: '10s',
-    render: () => <OutroSlide routineName={routineName} exerciseCount={playlist.length} totalDuration={totalDuration} level={level} />
+    duration: '9s',
+    render: () => <OutroSlide routineName={routineName} exerciseCount={playlist.length} totalDuration={totalDuration} level={level} condition={condition} />
   });
 
   function goTo(index: number) {
