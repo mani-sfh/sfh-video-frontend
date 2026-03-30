@@ -108,6 +108,25 @@ export async function getVideoJob(jobId: string) {
   return data;
 }
 
+export async function getRecentVideoJobs(limit = 20) {
+  const { data, error } = await supabase
+    .from('video_jobs')
+    .select('*')
+    .eq('status', 'completed')
+    .order('completed_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function updateVideoJob(jobId: string, updates: { vimeo_id?: string; vimeo_url?: string }) {
+  const { error } = await supabase
+    .from('video_jobs')
+    .update(updates)
+    .eq('id', jobId);
+  if (error) throw error;
+}
+
 export async function generateRoutineVideo(params: {
   jobId: string;
   routineName: string;
