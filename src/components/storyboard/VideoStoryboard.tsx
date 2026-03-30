@@ -2,7 +2,7 @@ import { X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import type { Exercise } from '../../lib/supabase';
 import {
-  TitleCardSlide, TrackerReminderSlide, EquipmentSlide, LetsStartSlide,
+  ThumbnailSlide, TitleCardSlide, TrackerReminderSlide, EquipmentSlide, LetsStartSlide,
   WatchLearnSlide, VideoPlaySlide, YourTurnSlide, PracticeCountdownSlide,
   SwitchSidesSlide, ExerciseCompleteSlide, OutroSlide
 } from './SlideRenderer';
@@ -15,6 +15,9 @@ interface VideoStoryboardProps {
   subtitle?: string;
   level?: string;
   condition?: string;
+  thumbnailImageUrl?: string;
+  thumbnailBadge?: string;
+  thumbnailTitle?: string;
   onApprove: () => void;
   onClose: () => void;
 }
@@ -25,10 +28,17 @@ interface SlideItem {
   render: () => JSX.Element;
 }
 
-export default function VideoStoryboard({ playlist, routineName, totalDuration, equipment, subtitle, level, condition, onApprove, onClose }: VideoStoryboardProps) {
+export default function VideoStoryboard({ playlist, routineName, totalDuration, equipment, subtitle, level, condition, thumbnailImageUrl, thumbnailBadge, thumbnailTitle, onApprove, onClose }: VideoStoryboardProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const slides: SlideItem[] = [];
+
+  // Thumbnail (first frame)
+  slides.push({
+    label: 'Thumbnail',
+    duration: '2s',
+    render: () => <ThumbnailSlide routineName={routineName} totalDuration={totalDuration} overlayImageUrl={thumbnailImageUrl} badgeText={thumbnailBadge} titleText={thumbnailTitle} />
+  });
 
   // Intro slides (durations match server videoGenerator.js)
   slides.push({
