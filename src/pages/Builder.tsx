@@ -352,7 +352,7 @@ export default function Builder() {
         </div>
       </div>
 
-      {showStoryboard && <VideoStoryboard playlist={playlist} routineName={routineName || 'Custom Routine'} totalDuration={`~${getTotalTime()} minutes`} equipment={templateData?.equipment} subtitle={templateData?.subtitle} level={templateData?.level} condition={templateData?.condition} onApprove={handleStoryboardApprove} onClose={() => setShowStoryboard(false)} />}
+      {showStoryboard && <VideoStoryboard playlist={playlist} routineName={routineName || 'Custom Routine'} totalDuration={`~${getTotalTime()} minutes`} equipment={templateData?.equipment} subtitle={templateData?.subtitle} level={templateData?.level} condition={templateData?.condition} thumbnailImageUrl={thumbnailImageUrl} thumbnailBadge={thumbnailBadge} thumbnailTitle={thumbnailTitle} onApprove={handleStoryboardApprove} onClose={() => setShowStoryboard(false)} />}
 
       {/* Minimized job pills — draggable container */}
       {videoJobs.filter(j => j.minimized || j.id !== activeJobId).length > 0 && (
