@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, uploadToVimeo } from '../lib/supabase';
+import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, deleteVideoJob, uploadToVimeo } from '../lib/supabase';
 import type { MVCode, ThumbnailImage, SavedTemplate } from '../lib/supabase';
 import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play, Download, Upload, Video, Loader2, ExternalLink } from 'lucide-react';
 
@@ -318,10 +318,17 @@ export default function SavedCodes() {
                   </div>
                 </div>
                 {job.vimeo_id && <span className="text-xs font-bold text-teal bg-teal/10 px-2 py-0.5 rounded-full">Vimeo ✓</span>}
+                {codes.some(c => c.video_url === job.output_url || (job.vimeo_id && c.vimeo_id === job.vimeo_id)) && <span className="text-xs font-bold text-navy bg-navy/10 px-2 py-0.5 rounded-full">MV</span>}
                 <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${openItemId==='vid-'+job.id?'rotate-90':''}`}/>
               </div>
               {openItemId==='vid-'+job.id&&(
                 <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-2">
+                  {/* Copy MV Embed Code */}
+                  {(() => { const match = codes.find(c => c.video_url === job.output_url || (job.vimeo_id && c.vimeo_id === job.vimeo_id)); return match ? (
+                    <button onClick={()=>doCopy(match.mv_code,'vid-'+job.id,'mvc')} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg font-bold text-sm text-navy border-2 border-navy bg-white hover:bg-navy/5 cursor-pointer min-h-[40px]">
+                      {copiedId==='vid-'+job.id+'mvc' ? <><Check className="w-4 h-4 text-teal"/> Copied!</> : <><Code className="w-4 h-4"/> Copy MV Embed Code</>}
+                    </button>
+                  ) : null; })()}
                   {/* Download MP4 */}
                   {job.output_url && (
                     <a href={job.output_url} target="_blank" rel="noopener" className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-navy to-crimson no-underline min-h-[40px]">
@@ -353,6 +360,10 @@ export default function SavedCodes() {
                       </div>
                     </div>
                   )}
+                  {/* Delete */}
+                  <button onClick={async ()=>{ if(!confirm('Delete this video job?'))return; try{await deleteVideoJob(job.id);setVideoJobs(p=>p.filter(j=>j.id!==job.id));}catch(e){console.error(e);} }} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg font-bold text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 cursor-pointer border border-gray-200 bg-white min-h-[36px]">
+                    <Trash2 className="w-3.5 h-3.5"/> Delete
+                  </button>
                 </div>
               )}
             </div>
