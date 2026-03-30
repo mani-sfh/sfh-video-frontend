@@ -41,6 +41,33 @@ function tags(t?: string[]) {
   return `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px;">${t.map(x=>`<span style="display:inline-block;background:rgba(15,118,110,0.1);color:${COLORS.teal};font-size:18px;font-weight:700;padding:6px 16px;border-radius:14px;margin:3px 4px;">${esc(x)}</span>`).join('')}</div>`;
 }
 
+const CHARACTER_OVERLAY_URL = 'https://assets.cdn.filesafe.space/Tg27dC86DFaiDsilRpae/media/69c71bf95eea83c015473d3c.png';
+
+export function thumbnail(routineName: string, totalMinutes: string, overlayImageUrl?: string, badgeText?: string, titleText?: string) {
+  const durationBadge = esc(badgeText || totalMinutes);
+  const nameLines = esc(titleText || routineName).toUpperCase();
+  const personUrl = overlayImageUrl || CHARACTER_OVERLAY_URL;
+  return `<!DOCTYPE html><html><head><style>
+*{margin:0;padding:0;box-sizing:border-box;}
+@font-face{font-family:'Impact';src:local('Impact'),local('Arial Black');}
+body{width:${W}px;height:${H}px;overflow:hidden;font-family:Impact,'Arial Black',Arial,sans-serif;background:#080808;}
+.bg{position:absolute;inset:0;background:linear-gradient(135deg,#0a0a0a 0%,#1a1018 40%,#0f0a12 100%);}
+.glow{position:absolute;right:5%;top:-10%;width:50%;height:120%;background:radial-gradient(ellipse at 50% 50%,rgba(166,30,81,0.22) 0%,transparent 60%);}
+.vignette{position:absolute;inset:0;background:radial-gradient(ellipse at 70% 50%,transparent 30%,rgba(0,0,0,0.5) 100%);z-index:3;}
+.accent{position:absolute;left:4.2%;top:50%;transform:translateY(-50%);width:5px;height:30%;background:${COLORS.crimson};border-radius:3px;z-index:4;}
+.content{position:absolute;left:6%;top:50%;transform:translateY(-50%);max-width:58%;z-index:5;}
+.badge{display:inline-block;background:#E65100;color:#fff;font-family:Impact,'Arial Black',Arial,sans-serif;font-weight:900;font-size:36px;padding:8px 20px;border-radius:8px;margin-bottom:14px;letter-spacing:2px;}
+.title{color:#ffffff;font-family:Impact,'Arial Black',Arial,sans-serif;font-weight:900;font-size:64px;line-height:1.05;text-transform:uppercase;letter-spacing:3px;text-shadow:0 4px 30px rgba(0,0,0,0.7);}
+.person{position:absolute;right:-2%;bottom:-2%;width:55%;height:104%;z-index:2;-webkit-mask-image:linear-gradient(to right,transparent 0%,black 25%),linear-gradient(to top,black 90%,transparent 100%);-webkit-mask-composite:destination-in;mask-image:linear-gradient(to right,transparent 0%,black 25%),linear-gradient(to top,black 90%,transparent 100%);mask-composite:intersect;}
+.person img{width:100%;height:100%;object-fit:contain;object-position:bottom right;}
+</style></head><body>
+<div class="bg"></div><div class="glow"></div>
+<div class="person"><img src="${personUrl}" alt="" /></div>
+<div class="vignette"></div><div class="accent"></div>
+<div class="content"><div class="badge">${durationBadge}</div><div class="title">${nameLines}</div></div>
+</body></html>`;
+}
+
 export function titleCard(name: string, count: number, dur: string, subtitle?: string, level?: string, condition?: string) {
   return base(
     `background:linear-gradient(135deg,${COLORS.navy} 0%,${COLORS.crimson} 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;`,
