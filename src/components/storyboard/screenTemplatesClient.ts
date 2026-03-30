@@ -38,7 +38,7 @@ function dots(cur: number, tot: number) {
 
 function tags(t?: string[]) {
   if(!t||!t.length) return '';
-  return `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px;">${t.map(x=>`<span style="display:inline-block;background:rgba(15,118,110,0.1);color:${COLORS.teal};font-size:18px;font-weight:700;padding:6px 16px;border-radius:14px;margin:3px 4px;">${esc(x)}</span>`).join('')}</div>`;
+  return `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px;">${t.map(x=>`<span style="display:inline-block;background:rgba(15,118,110,0.1);color:${COLORS.crimson};font-size:18px;font-weight:700;padding:6px 16px;border-radius:14px;margin:3px 4px;">${esc(x)}</span>`).join('')}</div>`;
 }
 
 const CHARACTER_OVERLAY_URL = 'https://assets.cdn.filesafe.space/Tg27dC86DFaiDsilRpae/media/69c71bf95eea83c015473d3c.png';
@@ -75,7 +75,7 @@ export function titleCard(name: string, count: number, dur: string, subtitle?: s
     <div style="width:240px;height:2px;background:rgba(255,255,255,0.3);margin:20px 0;"></div>
     ${level?`<span style="display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:${COLORS.white};font-size:20px;font-weight:700;padding:8px 24px;border-radius:24px;letter-spacing:1px;text-transform:uppercase;margin-bottom:20px;">${esc(level)}</span>`:''}
     <h1 style="font-family:Petrona,Georgia,serif;font-size:62px;font-weight:700;color:${COLORS.white};line-height:1.15;margin-bottom:16px;">${esc(name)}</h1>
-    ${subtitle?`<p style="font-size:30px;color:rgba(255,255,255,0.85);font-weight:600;font-style:italic;margin-bottom:16px;max-width:85%;">${esc(subtitle)}</p>`:''}
+    ${subtitle?`<p style="font-size:30px;color:rgba(255,255,255,0.85);font-weight:600;margin-bottom:16px;max-width:85%;">${esc(subtitle)}</p>`:''}
     <p style="font-size:28px;color:rgba(255,255,255,0.9);font-weight:700;">${count} Exercises &middot; ${esc(dur)}</p>
     ${condition?`<span style="display:inline-block;background:rgba(15,118,110,0.8);color:${COLORS.white};font-size:22px;font-weight:700;padding:10px 28px;border-radius:24px;margin-top:12px;">${esc(condition)}</span>`:''}
     <div style="width:240px;height:2px;background:rgba(255,255,255,0.3);margin:20px 0;"></div>
@@ -156,7 +156,7 @@ export function yourTurn(exNum: number, total: number, name: string, timeDisplay
       ${bilateral?`<span style="background:${COLORS.crimson};color:${COLORS.white};font-size:22px;font-weight:700;padding:10px 28px;border-radius:24px;margin-bottom:14px;">Starting: ${(side||'RIGHT').toUpperCase()} SIDE</span>`:''}
       ${tags(tagsList)}
       ${cue?`<div style="background:${COLORS.crimson};padding:14px 28px;border-radius:10px;margin-top:16px;max-width:85%;"><p style="font-size:24px;color:${COLORS.white};font-weight:700;text-align:center;">"${esc(cue)}"</p></div>`:''}
-      ${focus?`<p style="font-size:22px;color:${COLORS.warmGray};font-weight:600;font-style:italic;margin-top:12px;max-width:80%;text-align:center;line-height:1.4;">${esc(focus)}</p>`:''}</div>`
+      ${focus?`<p style="font-size:22px;color:${COLORS.warmGray};font-weight:600;margin-top:12px;max-width:80%;text-align:center;line-height:1.4;">${esc(focus)}</p>`:''}</div>`
   );
 }
 
@@ -210,7 +210,7 @@ export function outro(name: string, count: number, dur: string, level?: string, 
     ${level?`<span style="display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:${COLORS.white};font-size:18px;font-weight:700;padding:6px 22px;border-radius:20px;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;">${esc(level)}</span>`:''}
     <p style="font-size:28px;color:rgba(255,255,255,0.9);font-weight:700;margin-bottom:8px;">${esc(name)}</p>
     <p style="font-size:26px;color:${COLORS.white};font-weight:700;margin-bottom:8px;">${count} exercises &middot; ${esc(dur)}</p>
-    ${condition?`<p style="font-size:24px;color:rgba(255,255,255,0.85);font-weight:600;font-style:italic;margin-bottom:12px;">Building your ${esc(condition.toLowerCase())}, one session at a time.</p>`:''}
+    ${condition?`<p style="font-size:24px;color:rgba(255,255,255,0.85);font-weight:600;margin-bottom:12px;">Building your ${esc(condition.toLowerCase())}, one session at a time.</p>`:''}
     <p style="font-size:24px;color:rgba(255,255,255,0.8);font-weight:700;margin-bottom:20px;">Great work today. Consistency builds confidence.</p>
     <div style="width:240px;height:2px;background:rgba(255,255,255,0.3);margin:16px 0;"></div>
     <p style="font-size:20px;letter-spacing:4px;color:rgba(255,255,255,0.8);font-weight:700;text-transform:uppercase;">SENIOR FITNESS <span style="color:${COLORS.pinkLight};">HUB</span></p>
