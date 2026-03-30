@@ -48,6 +48,12 @@ function ScaledSlide({ html }: { html: string }) {
   );
 }
 
+export function ThumbnailSlide({ routineName, totalDuration, overlayImageUrl, badgeText, titleText }: {
+  routineName: string; totalDuration: string; overlayImageUrl?: string; badgeText?: string; titleText?: string;
+}) {
+  return <ScaledSlide html={T.thumbnail(routineName, totalDuration, overlayImageUrl, badgeText, titleText)} />;
+}
+
 export function TitleCardSlide({ routineName, exerciseCount, totalDuration, subtitle, level, condition }: {
   routineName: string; exerciseCount: number; totalDuration: string; subtitle?: string; level?: string; condition?: string;
 }) {
