@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, deleteVideoJob, uploadToVimeo } from '../lib/supabase';
+import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, deleteVideoJob, cleanupVideoStorage, uploadToVimeo } from '../lib/supabase';
 import type { MVCode, ThumbnailImage, SavedTemplate } from '../lib/supabase';
-import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play, Download, Upload, Video, Loader2, ExternalLink } from 'lucide-react';
+import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play, Download, Upload, Video, Loader2, ExternalLink, CheckSquare, Square } from 'lucide-react';
 
 function useDragReorder<T extends {id:string}>(items: T[], setItems: (items: T[]) => void, onPersist: (items: T[]) => Promise<void>) {
   const dragItem = useRef<number|null>(null);
@@ -60,6 +60,18 @@ export default function SavedCodes() {
   const [vimeoUploading, setVimeoUploading] = useState<string|null>(null);
   const [editingVimeoId, setEditingVimeoId] = useState<string | null>(null);
   const [vimeoIdInput, setVimeoIdInput] = useState('');
+
+  // Multi-select
+  const [selectMode, setSelectMode] = useState<'images'|'templates'|'codes'|'videos'|null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  function toggleSelect(id: string) { setSelectedIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; }); }
+  function exitSelectMode() { setSelectMode(null); setSelectedIds(new Set()); }
+  function selectAll(ids: string[]) { setSelectedIds(new Set(ids)); }
+
+  async function bulkDeleteImages() { if(!confirm(`Delete ${selectedIds.size} image(s)?`)) return; for(const id of selectedIds){ try{await deleteThumbnailImage(id);}catch(e){} } setThumbImages(p=>p.filter(i=>!selectedIds.has(i.id))); exitSelectMode(); }
+  async function bulkDeleteTemplates() { if(!confirm(`Delete ${selectedIds.size} template(s)?`)) return; for(const id of selectedIds){ try{await deleteSavedTemplate(id);}catch(e){} } setTemplates(p=>p.filter(t=>!selectedIds.has(t.id))); exitSelectMode(); }
+  async function bulkDeleteCodes() { if(!confirm(`Delete ${selectedIds.size} code(s)?`)) return; for(const id of selectedIds){ try{await deleteMVCode(id);}catch(e){} } setCodes(p=>p.filter(c=>!selectedIds.has(c.id))); exitSelectMode(); }
+  async function bulkDeleteVideos() { if(!confirm(`Delete ${selectedIds.size} video(s)?`)) return; for(const id of selectedIds){ try{await deleteVideoJob(id);}catch(e){console.error('Delete failed:',id,e);} } setVideoJobs(p=>p.filter(j=>!selectedIds.has(j.id))); exitSelectMode(); }
 
   useEffect(() => { async function load() { try { const [c,i,t,v] = await Promise.all([getMVCodes(),getThumbnailImages(),getSavedTemplates(),getRecentVideoJobs()]); setCodes(c); setThumbImages(i); setTemplates(t); setVideoJobs(v); } catch(e){console.error(e);} finally{setLoading(false);} } load(); }, []);
 
@@ -122,6 +134,7 @@ export default function SavedCodes() {
         <button onClick={()=>setShowImages(!showImages)} className="flex items-center gap-2 w-full text-left px-4 py-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer transition-all">
           <Image className="w-5 h-5 text-purple-700"/><span className="text-lg font-bold text-navy flex-1">Thumbnail Image Library</span>
           <span className="text-xs font-bold text-gray-400">{thumbImages.length}</span>
+          {showImages && thumbImages.length>0 && <button onClick={e=>{e.stopPropagation();selectMode==='images'?exitSelectMode():(() => {setSelectMode('images');setSelectedIds(new Set());})();}} className={`text-xs font-bold px-2 py-0.5 rounded cursor-pointer border-none ${selectMode==='images'?'text-red-500 bg-red-50':'text-gray-400 bg-gray-100 hover:text-navy'}`}>{selectMode==='images'?'Cancel':'Select'}</button>}
           {showImages?<ChevronUp className="w-4 h-4 text-gray-400"/>:<ChevronDown className="w-4 h-4 text-gray-400"/>}
         </button>
         {showImages&&(<div className="mt-3">
@@ -130,11 +143,19 @@ export default function SavedCodes() {
             <input type="text" value={newImgUrl} onChange={e=>setNewImgUrl(e.target.value)} placeholder="Paste image URL" className="flex-[2] px-3 py-2.5 rounded-lg border-2 border-gray-200 focus:border-navy focus:outline-none text-sm font-semibold text-gray-500"/>
             <button onClick={handleAddImage} disabled={savingImage||!newImgLabel.trim()||!newImgUrl.trim()} className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-navy to-crimson hover:shadow-md cursor-pointer border-none disabled:opacity-50 whitespace-nowrap min-h-[44px]"><ImagePlus className="w-4 h-4"/>{savingImage?'...':'Save'}</button>
           </div></div>
-          {thumbImages.length>0?(<div className="space-y-1">{thumbImages.map((img,idx)=>(
-            <div key={img.id} draggable={editImgId!==img.id} onDragStart={()=>imgDrag.onDragStart(idx)} onDragEnter={()=>imgDrag.onDragEnter(idx)} onDragEnd={imgDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className={`bg-white rounded-xl border border-gray-200 overflow-hidden ${editImgId!==img.id?'cursor-grab active:cursor-grabbing':''} hover:shadow-sm transition-shadow`}>
-              {/* Collapsed row */}
-              <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" onClick={()=>editImgId!==img.id&&toggleItem('img-'+img.id)}>
-                <GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0"/>
+          {thumbImages.length>0?(<div className="space-y-1">
+            {selectMode==='images'&&(<div className="flex items-center gap-2 mb-2 px-2">
+              <button onClick={()=>selectAll(thumbImages.map(i=>i.id))} className="text-xs font-bold text-navy cursor-pointer bg-transparent border-none p-0 hover:underline">Select All</button>
+              <span className="text-xs text-gray-300">|</span>
+              <span className="text-xs font-bold text-gray-400">{selectedIds.size} selected</span>
+              <span className="flex-1"/>
+              <button onClick={bulkDeleteImages} disabled={selectedIds.size===0} className="text-xs font-bold text-red-500 cursor-pointer bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-1 disabled:opacity-40"><Trash2 className="w-3 h-3 inline mr-1"/>Delete Selected</button>
+            </div>)}
+            {thumbImages.map((img,idx)=>(
+            <div key={img.id} draggable={editImgId!==img.id&&selectMode!=='images'} onDragStart={()=>imgDrag.onDragStart(idx)} onDragEnter={()=>imgDrag.onDragEnter(idx)} onDragEnd={imgDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className={`bg-white rounded-xl border border-gray-200 overflow-hidden ${editImgId!==img.id&&selectMode!=='images'?'cursor-grab active:cursor-grabbing':''} hover:shadow-sm transition-shadow`}>
+              <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" onClick={()=>selectMode==='images'?toggleSelect(img.id):editImgId!==img.id&&toggleItem('img-'+img.id)}>
+                {selectMode==='images'&&<div className="flex-shrink-0">{selectedIds.has(img.id)?<CheckSquare className="w-5 h-5 text-crimson"/>:<Square className="w-5 h-5 text-gray-300"/>}</div>}
+                {selectMode!=='images'&&<GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0"/>}
                 <img src={img.image_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-gray-100"/>
                 <span className="font-bold text-navy text-sm flex-1 truncate">{img.label}</span>
                 <button onClick={e=>{e.stopPropagation();doCopy(img.image_url,'img-'+img.id,'');}} className="text-xs font-bold text-teal hover:text-teal/80 cursor-pointer bg-transparent border-none p-0 flex-shrink-0">{copiedId==='img-'+img.id?'✓':'Copy'}</button>
@@ -167,6 +188,7 @@ export default function SavedCodes() {
         <button onClick={()=>setShowTemplates(!showTemplates)} className="flex items-center gap-2 w-full text-left px-4 py-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer transition-all">
           <FileText className="w-5 h-5 text-crimson"/><span className="text-lg font-bold text-navy flex-1">Saved Templates</span>
           <span className="text-xs font-bold text-gray-400">{templates.length}</span>
+          {showTemplates && templates.length>0 && <button onClick={e=>{e.stopPropagation();selectMode==='templates'?exitSelectMode():(() => {setSelectMode('templates');setSelectedIds(new Set());})();}} className={`text-xs font-bold px-2 py-0.5 rounded cursor-pointer border-none ${selectMode==='templates'?'text-red-500 bg-red-50':'text-gray-400 bg-gray-100 hover:text-navy'}`}>{selectMode==='templates'?'Cancel':'Select'}</button>}
           {showTemplates?<ChevronUp className="w-4 h-4 text-gray-400"/>:<ChevronDown className="w-4 h-4 text-gray-400"/>}
         </button>
         {showTemplates&&(<div className="mt-3">
@@ -181,9 +203,23 @@ export default function SavedCodes() {
               </div>
             </div>
           )}
-          <div className="space-y-1">{templates.length>0?templates.map((t,idx)=>(
-            <div key={t.id} draggable={editTplId!==t.id} onDragStart={()=>tplDrag.onDragStart(idx)} onDragEnter={()=>tplDrag.onDragEnter(idx)} onDragEnd={tplDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className={`bg-white rounded-xl border border-gray-200 overflow-hidden ${editTplId!==t.id?'cursor-grab active:cursor-grabbing':''} hover:shadow-sm transition-shadow`}>
-              {editTplId===t.id?(
+          <div className="space-y-1">
+            {selectMode==='templates'&&(<div className="flex items-center gap-2 mb-2 px-2">
+              <button onClick={()=>selectAll(templates.map(t=>t.id))} className="text-xs font-bold text-navy cursor-pointer bg-transparent border-none p-0 hover:underline">Select All</button>
+              <span className="text-xs text-gray-300">|</span>
+              <span className="text-xs font-bold text-gray-400">{selectedIds.size} selected</span>
+              <span className="flex-1"/>
+              <button onClick={bulkDeleteTemplates} disabled={selectedIds.size===0} className="text-xs font-bold text-red-500 cursor-pointer bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-1 disabled:opacity-40"><Trash2 className="w-3 h-3 inline mr-1"/>Delete Selected</button>
+            </div>)}
+            {templates.length>0?templates.map((t,idx)=>(
+            <div key={t.id} draggable={editTplId!==t.id&&selectMode!=='templates'} onDragStart={()=>tplDrag.onDragStart(idx)} onDragEnter={()=>tplDrag.onDragEnter(idx)} onDragEnd={tplDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className={`bg-white rounded-xl border border-gray-200 overflow-hidden ${editTplId!==t.id&&selectMode!=='templates'?'cursor-grab active:cursor-grabbing':''} hover:shadow-sm transition-shadow`}>
+              {selectMode==='templates'&&editTplId!==t.id ? (
+                <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={()=>toggleSelect(t.id)}>
+                  {selectedIds.has(t.id)?<CheckSquare className="w-5 h-5 text-crimson flex-shrink-0"/>:<Square className="w-5 h-5 text-gray-300 flex-shrink-0"/>}
+                  {t.thumbnail_image_url&&<img src={t.thumbnail_image_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-gray-100"/>}
+                  <span className="font-bold text-navy text-sm flex-1 truncate">{t.label}</span>
+                </div>
+              ) : editTplId===t.id?(
                 <div className="p-4 space-y-2">
                   <input type="text" value={editTplLabel} onChange={e=>setEditTplLabel(e.target.value)} className="w-full px-3 py-2 rounded-lg border-2 border-navy text-sm font-bold focus:outline-none"/>
                   <ThumbPicker value={editTplThumb} onChange={setEditTplThumb} show={showEditTplPicker} setShow={setShowEditTplPicker}/>
@@ -230,14 +266,21 @@ export default function SavedCodes() {
         <button onClick={()=>setShowCodes(!showCodes)} className="flex items-center gap-2 w-full text-left px-4 py-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer transition-all">
           <Code className="w-5 h-5 text-purple-700"/><span className="text-lg font-bold text-navy flex-1">Saved MV Codes</span>
           <span className="text-xs font-bold text-gray-400">{codes.length}</span>
+          {showCodes && codes.length>0 && <button onClick={e=>{e.stopPropagation();selectMode==='codes'?exitSelectMode():(() => {setSelectMode('codes');setSelectedIds(new Set());})();}} className={`text-xs font-bold px-2 py-0.5 rounded cursor-pointer border-none ${selectMode==='codes'?'text-red-500 bg-red-50':'text-gray-400 bg-gray-100 hover:text-navy'}`}>{selectMode==='codes'?'Cancel':'Select'}</button>}
           {showCodes?<ChevronUp className="w-4 h-4 text-gray-400"/>:<ChevronDown className="w-4 h-4 text-gray-400"/>}
         </button>
         {showCodes&&(<div className="mt-3 space-y-1">
+          {selectMode==='codes'&&(<div className="flex items-center gap-2 mb-2 px-2">
+            <button onClick={()=>selectAll(codes.map(c=>c.id))} className="text-xs font-bold text-navy cursor-pointer bg-transparent border-none p-0 hover:underline">Select All</button>
+            <span className="text-xs text-gray-300">|</span>
+            <span className="text-xs font-bold text-gray-400">{selectedIds.size} selected</span>
+            <span className="flex-1"/>
+            <button onClick={bulkDeleteCodes} disabled={selectedIds.size===0} className="text-xs font-bold text-red-500 cursor-pointer bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-1 disabled:opacity-40"><Trash2 className="w-3 h-3 inline mr-1"/>Delete Selected</button>
+          </div>)}
           {codes.length>0?codes.map((code,idx)=>(
-            <div key={code.id} draggable onDragStart={()=>codeDrag.onDragStart(idx)} onDragEnter={()=>codeDrag.onDragEnter(idx)} onDragEnd={codeDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className="bg-white rounded-xl border border-gray-200 overflow-hidden cursor-grab active:cursor-grabbing hover:shadow-sm transition-shadow">
-              {/* Collapsed row */}
-              <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" onClick={()=>toggleItem('code-'+code.id)}>
-                <GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0"/>
+            <div key={code.id} draggable={selectMode!=='codes'} onDragStart={()=>codeDrag.onDragStart(idx)} onDragEnter={()=>codeDrag.onDragEnter(idx)} onDragEnd={codeDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className={`bg-white rounded-xl border border-gray-200 overflow-hidden ${selectMode!=='codes'?'cursor-grab active:cursor-grabbing':''} hover:shadow-sm transition-shadow`}>
+              <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" onClick={()=>selectMode==='codes'?toggleSelect(code.id):toggleItem('code-'+code.id)}>
+                {selectMode==='codes'?<div className="flex-shrink-0">{selectedIds.has(code.id)?<CheckSquare className="w-5 h-5 text-crimson"/>:<Square className="w-5 h-5 text-gray-300"/>}</div>:<GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0"/>}
                 <span className="font-bold text-navy text-sm flex-1 truncate">{code.routine_name}</span>
                 <span className="text-xs text-gray-400 flex-shrink-0">{code.exercise_count} ex · ~{code.duration_minutes}m</span>
                 <button onClick={e=>{e.stopPropagation();doCopy(code.mv_code,code.id,'mv');}} className="text-xs font-bold text-white bg-gradient-to-r from-navy to-crimson px-2.5 py-1 rounded cursor-pointer border-none flex-shrink-0">{copiedId===code.id+'mv'?'✓':'MV'}</button>
@@ -300,14 +343,23 @@ export default function SavedCodes() {
         <button onClick={()=>setShowVideos(!showVideos)} className="flex items-center gap-2 w-full text-left px-4 py-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer transition-all">
           <Video className="w-5 h-5 text-teal"/><span className="text-lg font-bold text-navy flex-1">Recent Videos</span>
           <span className="text-xs font-bold text-gray-400">{videoJobs.length}</span>
+          {showVideos && videoJobs.length>0 && <button onClick={e=>{e.stopPropagation();selectMode==='videos'?exitSelectMode():(() => {setSelectMode('videos');setSelectedIds(new Set());})();}} className={`text-xs font-bold px-2 py-0.5 rounded cursor-pointer border-none ${selectMode==='videos'?'text-red-500 bg-red-50':'text-gray-400 bg-gray-100 hover:text-navy'}`}>{selectMode==='videos'?'Cancel':'Select'}</button>}
           {showVideos?<ChevronUp className="w-4 h-4 text-gray-400"/>:<ChevronDown className="w-4 h-4 text-gray-400"/>}
         </button>
         {showVideos&&(<div className="mt-3">
+          {selectMode==='videos'&&(<div className="flex items-center gap-2 mb-2 px-2">
+            <button onClick={()=>selectAll(videoJobs.map(j=>j.id))} className="text-xs font-bold text-navy cursor-pointer bg-transparent border-none p-0 hover:underline">Select All</button>
+            <span className="text-xs text-gray-300">|</span>
+            <span className="text-xs font-bold text-gray-400">{selectedIds.size} selected</span>
+            <span className="flex-1"/>
+            <button onClick={bulkDeleteVideos} disabled={selectedIds.size===0} className="text-xs font-bold text-red-500 cursor-pointer bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-1 disabled:opacity-40"><Trash2 className="w-3 h-3 inline mr-1"/>Delete Selected</button>
+          </div>)}
           {videoJobs.length>0?(<div className="space-y-2">{videoJobs.map((job)=>{
             const date = job.completed_at ? new Date(job.completed_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : '';
             return (
             <div key={job.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div onClick={()=>toggleItem('vid-'+job.id)} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50">
+              <div onClick={()=>selectMode==='videos'?toggleSelect(job.id):toggleItem('vid-'+job.id)} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50">
+                {selectMode==='videos'&&<div className="flex-shrink-0">{selectedIds.has(job.id)?<CheckSquare className="w-5 h-5 text-crimson"/>:<Square className="w-5 h-5 text-gray-300"/>}</div>}
                 {job.thumbnail_url && <img src={job.thumbnail_url} alt="" className="w-20 h-12 rounded-lg object-cover flex-shrink-0 bg-gray-100"/>}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-navy truncate">{job.routine_label || 'Routine'}</p>
@@ -335,8 +387,8 @@ export default function SavedCodes() {
                       <Download className="w-4 h-4"/> Download MP4
                     </a>
                   )}
-                  {/* Upload to Vimeo */}
-                  {job.output_url && !job.vimeo_id && (
+                  {/* Upload / Re-upload to Vimeo */}
+                  {job.output_url && (
                     <button onClick={async ()=>{
                       setVimeoUploading(job.id);
                       try {
@@ -346,7 +398,7 @@ export default function SavedCodes() {
                       } catch(e){ alert('Upload failed: '+(e as Error).message); }
                       finally { setVimeoUploading(null); }
                     }} disabled={vimeoUploading===job.id} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg font-bold text-sm text-white bg-teal hover:bg-teal/90 cursor-pointer border-none min-h-[40px] disabled:opacity-60">
-                      {vimeoUploading===job.id ? <><Loader2 className="w-4 h-4 animate-spin"/> Uploading...</> : <><Upload className="w-4 h-4"/> Upload to Vimeo</>}
+                      {vimeoUploading===job.id ? <><Loader2 className="w-4 h-4 animate-spin"/> Uploading...</> : <><Upload className="w-4 h-4"/> {job.vimeo_id ? 'Re-upload to Vimeo' : 'Upload to Vimeo'}</>}
                     </button>
                   )}
                   {/* Vimeo info */}
@@ -359,6 +411,12 @@ export default function SavedCodes() {
                         <a href={job.vimeo_url || `https://vimeo.com/${job.vimeo_id}`} target="_blank" rel="noopener" className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-navy no-underline hover:bg-gray-50"><ExternalLink className="w-3 h-3"/>View</a>
                       </div>
                     </div>
+                  )}
+                  {/* Remove from Storage (only when on Vimeo and files still exist) */}
+                  {job.vimeo_id && job.output_url && (
+                    <button onClick={async ()=>{ if(!confirm('Remove MP4 and thumbnail from storage? The video will stay on Vimeo.'))return; try{await cleanupVideoStorage(job.id);setVideoJobs(p=>p.map(j=>j.id===job.id?{...j,output_url:null,thumbnail_url:null}:j));}catch(e){console.error(e);alert('Cleanup failed: '+(e as Error).message);} }} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg font-bold text-xs text-orange-500 hover:bg-orange-50 cursor-pointer border border-orange-200 bg-white min-h-[36px]">
+                      <Trash2 className="w-3.5 h-3.5"/> Remove from Storage (~{job.file_size_mb ? job.file_size_mb.toFixed(0) : '35'} MB)
+                    </button>
                   )}
                   {/* Delete */}
                   <button onClick={async ()=>{ if(!confirm('Delete this video job?'))return; try{await deleteVideoJob(job.id);setVideoJobs(p=>p.filter(j=>j.id!==job.id));}catch(e){console.error(e);} }} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg font-bold text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 cursor-pointer border border-gray-200 bg-white min-h-[36px]">
