@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate } from '../lib/supabase';
+import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, uploadToVimeo } from '../lib/supabase';
 import type { MVCode, ThumbnailImage, SavedTemplate } from '../lib/supabase';
-import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play } from 'lucide-react';
+import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play, Download, Upload, Video, Loader2, ExternalLink } from 'lucide-react';
 
 function useDragReorder<T extends {id:string}>(items: T[], setItems: (items: T[]) => void, onPersist: (items: T[]) => Promise<void>) {
   const dragItem = useRef<number|null>(null);
@@ -55,10 +55,13 @@ export default function SavedCodes() {
   const [showImages, setShowImages] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showCodes, setShowCodes] = useState(false);
+  const [showVideos, setShowVideos] = useState(false);
+  const [videoJobs, setVideoJobs] = useState<any[]>([]);
+  const [vimeoUploading, setVimeoUploading] = useState<string|null>(null);
   const [editingVimeoId, setEditingVimeoId] = useState<string | null>(null);
   const [vimeoIdInput, setVimeoIdInput] = useState('');
 
-  useEffect(() => { async function load() { try { const [c,i,t] = await Promise.all([getMVCodes(),getThumbnailImages(),getSavedTemplates()]); setCodes(c); setThumbImages(i); setTemplates(t); } catch(e){console.error(e);} finally{setLoading(false);} } load(); }, []);
+  useEffect(() => { async function load() { try { const [c,i,t,v] = await Promise.all([getMVCodes(),getThumbnailImages(),getSavedTemplates(),getRecentVideoJobs()]); setCodes(c); setThumbImages(i); setTemplates(t); setVideoJobs(v); } catch(e){console.error(e);} finally{setLoading(false);} } load(); }, []);
 
   function doCopy(text:string,id:string,type:string) { navigator.clipboard.writeText(text).then(()=>{setCopiedId(id+type);setTimeout(()=>setCopiedId(null),2000);}).catch(()=>{}); }
   function toggleItem(id:string) { setOpenItemId(openItemId===id?null:id); }
@@ -289,6 +292,72 @@ export default function SavedCodes() {
               )}
             </div>
           )):(<p className="text-sm text-gray-400 text-center py-4">No saved codes yet.</p>)}
+        </div>)}
+      </div>
+
+      {/* ═══ RECENT VIDEOS ═══ */}
+      <div className="mb-6">
+        <button onClick={()=>setShowVideos(!showVideos)} className="flex items-center gap-2 w-full text-left px-4 py-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer transition-all">
+          <Video className="w-5 h-5 text-teal"/><span className="text-lg font-bold text-navy flex-1">Recent Videos</span>
+          <span className="text-xs font-bold text-gray-400">{videoJobs.length}</span>
+          {showVideos?<ChevronUp className="w-4 h-4 text-gray-400"/>:<ChevronDown className="w-4 h-4 text-gray-400"/>}
+        </button>
+        {showVideos&&(<div className="mt-3">
+          {videoJobs.length>0?(<div className="space-y-2">{videoJobs.map((job)=>{
+            const date = job.completed_at ? new Date(job.completed_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : '';
+            return (
+            <div key={job.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div onClick={()=>toggleItem('vid-'+job.id)} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50">
+                {job.thumbnail_url && <img src={job.thumbnail_url} alt="" className="w-20 h-12 rounded-lg object-cover flex-shrink-0 bg-gray-100"/>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-navy truncate">{job.routine_label || 'Routine'}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {job.file_size_mb && <span className="text-xs font-semibold text-gray-400">{job.file_size_mb.toFixed(1)} MB</span>}
+                    <span className="text-xs font-semibold text-gray-400">{job.resolution || '720p'}</span>
+                    <span className="text-xs font-semibold text-gray-400">{date}</span>
+                  </div>
+                </div>
+                {job.vimeo_id && <span className="text-xs font-bold text-teal bg-teal/10 px-2 py-0.5 rounded-full">Vimeo ✓</span>}
+                <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${openItemId==='vid-'+job.id?'rotate-90':''}`}/>
+              </div>
+              {openItemId==='vid-'+job.id&&(
+                <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-2">
+                  {/* Download MP4 */}
+                  {job.output_url && (
+                    <a href={job.output_url} target="_blank" rel="noopener" className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-navy to-crimson no-underline min-h-[40px]">
+                      <Download className="w-4 h-4"/> Download MP4
+                    </a>
+                  )}
+                  {/* Upload to Vimeo */}
+                  {job.output_url && !job.vimeo_id && (
+                    <button onClick={async ()=>{
+                      setVimeoUploading(job.id);
+                      try {
+                        const result = await uploadToVimeo({ videoUrl: job.output_url, title: job.routine_label || 'SFH Routine', thumbnailUrl: job.thumbnail_url || undefined });
+                        await updateVideoJob(job.id, { vimeo_id: result.vimeoId, vimeo_url: result.vimeoLink });
+                        setVideoJobs(p=>p.map(j=>j.id===job.id?{...j,vimeo_id:result.vimeoId,vimeo_url:result.vimeoLink}:j));
+                      } catch(e){ alert('Upload failed: '+(e as Error).message); }
+                      finally { setVimeoUploading(null); }
+                    }} disabled={vimeoUploading===job.id} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg font-bold text-sm text-white bg-teal hover:bg-teal/90 cursor-pointer border-none min-h-[40px] disabled:opacity-60">
+                      {vimeoUploading===job.id ? <><Loader2 className="w-4 h-4 animate-spin"/> Uploading...</> : <><Upload className="w-4 h-4"/> Upload to Vimeo</>}
+                    </button>
+                  )}
+                  {/* Vimeo info */}
+                  {job.vimeo_id && (
+                    <div className="bg-teal/5 border border-teal/20 rounded-lg p-3">
+                      <p className="text-xs font-bold text-teal mb-2">✓ Uploaded to Vimeo — ID: {job.vimeo_id}</p>
+                      <div className="flex gap-2">
+                        <button onClick={()=>doCopy(job.vimeo_id,'vid-'+job.id,'vimid')} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-navy cursor-pointer hover:bg-gray-50">{copiedId==='vid-'+job.id+'vimid'?<><Check className="w-3 h-3 text-teal"/>Copied</>:<><Copy className="w-3 h-3"/>Copy ID</>}</button>
+                        <button onClick={()=>doCopy(`https://player.vimeo.com/video/${job.vimeo_id}`,'vid-'+job.id,'vimurl')} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-navy cursor-pointer hover:bg-gray-50">{copiedId==='vid-'+job.id+'vimurl'?<><Check className="w-3 h-3 text-teal"/>Copied</>:<><Copy className="w-3 h-3"/>Player URL</>}</button>
+                        <a href={job.vimeo_url || `https://vimeo.com/${job.vimeo_id}`} target="_blank" rel="noopener" className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-navy no-underline hover:bg-gray-50"><ExternalLink className="w-3 h-3"/>View</a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );})}
+          </div>):(<p className="text-sm text-gray-400 text-center py-4">No completed videos yet.</p>)}
         </div>)}
       </div>
     </div>
