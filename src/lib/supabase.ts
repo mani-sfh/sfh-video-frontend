@@ -135,6 +135,19 @@ export async function deleteVideoJob(jobId: string) {
   if (error) throw error;
 }
 
+export async function cleanupVideoStorage(jobId: string) {
+  // Delete MP4 from storage
+  await supabase.storage.from('videos').remove([`generated-videos/routine_${jobId}.mp4`]);
+  // Delete thumbnail PNG from storage
+  await supabase.storage.from('videos').remove([`generated-thumbnails/thumbnail_${jobId}.png`]);
+  // Clear URLs from the database row (keep the row itself)
+  const { error } = await supabase
+    .from('video_jobs')
+    .update({ output_url: null, thumbnail_url: null })
+    .eq('id', jobId);
+  if (error) throw error;
+}
+
 export async function generateRoutineVideo(params: {
   jobId: string;
   routineName: string;
