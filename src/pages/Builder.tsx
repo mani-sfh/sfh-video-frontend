@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, getThumbnailImages, getSavedTemplates, saveTemplate, uploadToVimeo, supabase } from '../lib/supabase';
+import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, updateMVCode, getThumbnailImages, getSavedTemplates, saveTemplate, uploadToVimeo, supabase } from '../lib/supabase';
 import type { Exercise, ThumbnailImage, SavedTemplate } from '../lib/supabase';
 import ExerciseCard from '../components/ExerciseCard';
 import PlaylistItem from '../components/PlaylistItem';
@@ -36,11 +36,12 @@ export default function Builder() {
     thumbImageUrl: string; thumbBadge: string; thumbTitle: string; totalTime: number;
     vimeoResult: { vimeoId: string; vimeoLink: string } | null; vimeoError: string | null;
     vimeoUploading: boolean; minimized: boolean; showPlayer: boolean;
-    isDownloading: boolean; mvCopySuccess: boolean; copiedVimeoField: string | null; mvCodeSaved: boolean;
+    isDownloading: boolean; mvCopySuccess: boolean; copiedVimeoField: string | null; mvCodeSaved: boolean; savedMvCodeId: string | null;
   }>>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [pillsPos, setPillsPos] = useState<{ x: number; y: number } | null>(null);
   const pillsDrag = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const pollingIntervals = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const [selectedResolution, setSelectedResolution] = useState<'720p' | '1080p'>('720p');
   const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [showStoryboard, setShowStoryboard] = useState(false);
@@ -148,7 +149,7 @@ export default function Builder() {
         error: null, outputUrl: null, thumbnailUrl: null, duration: null, fileSize: null,
         playlist: [...playlist], templateData, thumbImageUrl: thumbnailImageUrl, thumbBadge: thumbnailBadge, thumbTitle: thumbnailTitle, totalTime: getTotalTime(),
         vimeoResult: null, vimeoError: null, vimeoUploading: false, minimized: false, showPlayer: false,
-        isDownloading: false, mvCopySuccess: false, copiedVimeoField: null, mvCodeSaved: false,
+        isDownloading: false, mvCopySuccess: false, copiedVimeoField: null, mvCodeSaved: false, savedMvCodeId: null,
       };
       setVideoJobs(prev => [...prev, newJob]);
       setActiveJobId(job.id);
@@ -166,13 +167,23 @@ export default function Builder() {
         const job = await getVideoJob(jobId);
         updateJob(jobId, { status: job.status, currentStep: job.current_step || 'Processing...' });
         if (job.progress_percentage != null) updateJob(jobId, { progress: job.progress_percentage });
-        if (job.status === 'completed') { updateJob(jobId, { progress: 100, outputUrl: job.output_url || null, thumbnailUrl: job.thumbnail_url || null, duration: job.duration_seconds || null, fileSize: job.file_size_mb || null }); clearInterval(interval); }
-        else if (job.status === 'failed') { updateJob(jobId, { error: job.error_message || 'Failed' }); clearInterval(interval); }
-      } catch (err) { updateJob(jobId, { error: 'Status check failed', status: 'failed' }); clearInterval(interval); }
+        if (job.status === 'completed') { updateJob(jobId, { progress: 100, outputUrl: job.output_url || null, thumbnailUrl: job.thumbnail_url || null, duration: job.duration_seconds || null, fileSize: job.file_size_mb || null }); clearInterval(interval); pollingIntervals.current.delete(jobId); }
+        else if (job.status === 'failed') { updateJob(jobId, { error: job.error_message || 'Failed' }); clearInterval(interval); pollingIntervals.current.delete(jobId); }
+      } catch (err) { updateJob(jobId, { error: 'Status check failed', status: 'failed' }); clearInterval(interval); pollingIntervals.current.delete(jobId); }
     }, 3000);
+    pollingIntervals.current.set(jobId, interval);
   }
 
-  function closeJob(jobId: string) { setVideoJobs(prev => prev.filter(j => j.id !== jobId)); if (activeJobId === jobId) setActiveJobId(null); }
+  function closeJob(jobId: string) {
+    // Don't remove jobs that are still processing
+    const job = videoJobs.find(j => j.id === jobId);
+    if (job && (job.status === 'pending' || job.status === 'processing')) return;
+    // Clear any polling interval
+    const interval = pollingIntervals.current.get(jobId);
+    if (interval) { clearInterval(interval); pollingIntervals.current.delete(jobId); }
+    setVideoJobs(prev => prev.filter(j => j.id !== jobId));
+    if (activeJobId === jobId) setActiveJobId(null);
+  }
 
   async function handleDownloadVideo(jobId: string) {
     const j = videoJobs.find(x => x.id === jobId); if (!j?.outputUrl) return;
@@ -181,7 +192,7 @@ export default function Builder() {
     catch (err) { window.open(j.outputUrl, '_blank'); } finally { updateJob(jobId, { isDownloading: false }); }
   }
 
-  function handleBuildAnother(jobId: string) { updateJob(jobId, { minimized: true }); setActiveJobId(null); setPlaylist([]); setRoutineName(''); }
+  function handleBuildAnother(jobId: string) { closeJob(jobId); setPlaylist([]); setRoutineName(''); }
 
   async function handleUploadToVimeo(jobId: string) {
     const j = videoJobs.find(x => x.id === jobId); if (!j?.outputUrl) return;
@@ -209,19 +220,28 @@ export default function Builder() {
       a.href = u; a.download = (j.routineName || 'MV_Code').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '_mv.html';
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
     });
-    // Auto-save to Supabase (only once per job, or re-save if vimeo was added)
-    if (!j.mvCodeSaved || j.vimeoResult) {
-      saveMVCode({
-        routine_name: j.routineName, exercise_count: j.playlist.length, duration_minutes: j.totalTime, mv_code: mvCode, template_text: templateForSave,
-        thumbnail_image_url: j.thumbImageUrl || undefined, thumbnail_badge: j.thumbBadge || undefined, thumbnail_title: j.thumbTitle || undefined,
-        video_url: j.outputUrl || undefined, generated_thumbnail_url: j.thumbnailUrl || undefined,
-        vimeo_id: j.vimeoResult?.vimeoId || undefined,
-      }).then(() => updateJob(jobId, { mvCodeSaved: true })).catch((err) => console.error('MV code save failed:', err));
+    // Auto-save to Supabase: INSERT first time, UPDATE same record after
+    const saveData = {
+      routine_name: j.routineName, exercise_count: j.playlist.length, duration_minutes: j.totalTime, mv_code: mvCode, template_text: templateForSave,
+      thumbnail_image_url: j.thumbImageUrl || undefined, thumbnail_badge: j.thumbBadge || undefined, thumbnail_title: j.thumbTitle || undefined,
+      video_url: j.outputUrl || undefined, generated_thumbnail_url: j.thumbnailUrl || undefined,
+      vimeo_id: j.vimeoResult?.vimeoId || undefined,
+    };
+    if (j.savedMvCodeId) {
+      // Update existing record
+      updateMVCode(j.savedMvCodeId, { mv_code: mvCode, vimeo_id: j.vimeoResult?.vimeoId || undefined, video_url: j.outputUrl || undefined })
+        .catch((err) => console.error('MV code update failed:', err));
+    } else {
+      // First save — insert new record
+      saveMVCode(saveData)
+        .then((saved) => updateJob(jobId, { mvCodeSaved: true, savedMvCodeId: saved.id }))
+        .catch((err) => console.error('MV code save failed:', err));
     }
   }
 
   // Keep old handleCopyMVCode for the playlist sidebar button (before video generation)
   const mvSaving = useRef(false);
+  const sidebarMvCodeId = useRef<string | null>(null);
   function handleCopyMVCode() {
     if (playlist.length === 0) return;
     const mvCode = generateMVCode(playlist, routineName || 'Custom Routine', getTotalTime(), templateData);
@@ -233,12 +253,15 @@ export default function Builder() {
       a.href = u; a.download = (routineName || 'MV_Code').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '_mv.html';
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
     });
-    if (!mvSaving.current) {
+    if (sidebarMvCodeId.current) {
+      // Update existing record
+      updateMVCode(sidebarMvCodeId.current, { mv_code: mvCode }).catch((err) => console.error('MV code update failed:', err));
+    } else if (!mvSaving.current) {
       mvSaving.current = true;
       saveMVCode({
         routine_name: routineName || 'Custom Routine', exercise_count: playlist.length, duration_minutes: getTotalTime(), mv_code: mvCode, template_text: templateForSave,
         thumbnail_image_url: thumbnailImageUrl || undefined, thumbnail_badge: thumbnailBadge || undefined, thumbnail_title: thumbnailTitle || undefined,
-      }).catch((err) => console.error('MV code save failed:', err)).finally(() => { setTimeout(() => { mvSaving.current = false; }, 3000); });
+      }).then((saved) => { sidebarMvCodeId.current = saved.id; }).catch((err) => console.error('MV code save failed:', err)).finally(() => { setTimeout(() => { mvSaving.current = false; }, 3000); });
     }
   }
 
@@ -329,7 +352,7 @@ export default function Builder() {
         </div>
       </div>
 
-      {showStoryboard && <VideoStoryboard playlist={playlist} routineName={routineName || 'Custom Routine'} totalDuration={`~${getTotalTime()} minutes`} equipment={templateData?.equipment} subtitle={templateData?.subtitle} level={templateData?.level} onApprove={handleStoryboardApprove} onClose={() => setShowStoryboard(false)} />}
+      {showStoryboard && <VideoStoryboard playlist={playlist} routineName={routineName || 'Custom Routine'} totalDuration={`~${getTotalTime()} minutes`} equipment={templateData?.equipment} subtitle={templateData?.subtitle} level={templateData?.level} condition={templateData?.condition} onApprove={handleStoryboardApprove} onClose={() => setShowStoryboard(false)} />}
 
       {/* Minimized job pills — draggable container */}
       {videoJobs.filter(j => j.minimized || j.id !== activeJobId).length > 0 && (
@@ -365,6 +388,9 @@ export default function Builder() {
           }}
         >
           <div className="flex flex-col gap-2 cursor-move">
+            {videoJobs.filter(j => j.minimized || j.id !== activeJobId).length > 1 && (
+              <button onClick={() => { setVideoJobs(prev => prev.filter(j => j.status === 'pending' || j.status === 'processing')); setActiveJobId(null); }} className="text-xs font-bold text-gray-400 hover:text-red-500 cursor-pointer bg-white/90 border border-gray-200 rounded-lg px-3 py-1.5 self-end mb-1 backdrop-blur-sm">Clear All</button>
+            )}
             {videoJobs.filter(j => j.minimized || j.id !== activeJobId).map((j) => (
               <div key={j.id} className="cursor-pointer" onClick={() => { updateJob(j.id, { minimized: false }); setActiveJobId(j.id); }}>
                 <div className="bg-white rounded-xl shadow-2xl border-2 border-navy/20 p-3 flex items-center gap-3 min-w-[280px] hover:shadow-lg transition-shadow">
@@ -380,7 +406,7 @@ export default function Builder() {
                     <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-red-500 font-semibold m-0">Failed</p></div>
                   </>) : null}
                   <Maximize2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <button onClick={(e) => { e.stopPropagation(); closeJob(j.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><X className="w-4 h-4" /></button>
+                  {(j.status !== 'pending' && j.status !== 'processing') && <button onClick={(e) => { e.stopPropagation(); closeJob(j.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><X className="w-4 h-4" /></button>}
                 </div>
               </div>
             ))}
