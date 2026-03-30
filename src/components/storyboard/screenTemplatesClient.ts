@@ -38,7 +38,7 @@ function dots(cur: number, tot: number) {
 
 function tags(t?: string[]) {
   if(!t||!t.length) return '';
-  return `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px;">${t.map(x=>`<span style="display:inline-block;background:rgba(15,118,110,0.1);color:${COLORS.crimson};font-size:18px;font-weight:700;padding:6px 16px;border-radius:14px;margin:3px 4px;">${esc(x)}</span>`).join('')}</div>`;
+  return `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px;">${t.map(x=>`<span style="display:inline-block;background:rgba(15,118,110,0.1);color:${COLORS.navy};font-size:18px;font-weight:700;padding:6px 16px;border-radius:14px;margin:3px 4px;">${esc(x)}</span>`).join('')}</div>`;
 }
 
 const CHARACTER_OVERLAY_URL = 'https://assets.cdn.filesafe.space/Tg27dC86DFaiDsilRpae/media/69c71bf95eea83c015473d3c.png';
