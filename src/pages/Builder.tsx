@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, saveMVCode, updateMVCode, getThumbnailImages, getSavedTemplates, saveTemplate, uploadToVimeo, supabase } from '../lib/supabase';
+import { getExercises, saveRoutine, createVideoJob, getVideoJob, generateRoutineVideo, generateThumbnailOnly, saveMVCode, updateMVCode, getThumbnailImages, getSavedTemplates, saveTemplate, uploadToVimeo, supabase } from '../lib/supabase';
 import type { Exercise, ThumbnailImage, SavedTemplate } from '../lib/supabase';
 import ExerciseCard from '../components/ExerciseCard';
 import PlaylistItem from '../components/PlaylistItem';
 import TemplateModal from '../components/TemplateModal';
-import { Search, Download, Save, Trash2, Clock, ListChecks, X, Video, Loader2, CheckCircle2, XCircle, Play, FileText, Code, ChevronDown, Upload, Minimize2, Maximize2 } from 'lucide-react';
+import { Search, Download, Save, Trash2, Clock, ListChecks, X, Video, Loader2, CheckCircle2, XCircle, Play, FileText, Code, ChevronDown, Upload, Minimize2, Maximize2, Image, Check, Copy } from 'lucide-react';
 import VideoStoryboard from '../components/storyboard/VideoStoryboard';
 import { parseTemplate, mergeTemplateWithDb, generateTemplateText } from '../lib/templateParser';
 import type { TemplateMetadata } from '../lib/templateParser';
@@ -21,6 +21,9 @@ export default function Builder() {
   const [thumbnailImageUrl, setThumbnailImageUrl] = useState('');
   const [thumbnailBadge, setThumbnailBadge] = useState('');
   const [thumbnailTitle, setThumbnailTitle] = useState('');
+  const [generatingThumb, setGeneratingThumb] = useState(false);
+  const [generatedThumbUrl, setGeneratedThumbUrl] = useState<string | null>(null);
+  const [thumbCopied, setThumbCopied] = useState(false);
   const [thumbLibrary, setThumbLibrary] = useState<ThumbnailImage[]>([]);
   const [savedTemplatesList, setSavedTemplatesList] = useState<SavedTemplate[]>([]);
   const [showThumbPicker, setShowThumbPicker] = useState(false);
@@ -135,6 +138,16 @@ export default function Builder() {
     catch (err) { alert('Error: ' + (err as Error).message); } finally { setSaving(false); }
   }
 
+  async function handleGenerateThumbnail() {
+    if (!routineName.trim()) return;
+    setGeneratingThumb(true); setGeneratedThumbUrl(null);
+    try {
+      const result = await generateThumbnailOnly({ routineName: routineName || 'Custom Routine', totalDuration: `~${getTotalTime()} minutes`, thumbnailImageUrl: thumbnailImageUrl || undefined, thumbnailBadge: thumbnailBadge || undefined, thumbnailTitle: thumbnailTitle || undefined, resolution: selectedResolution });
+      setGeneratedThumbUrl(result.thumbnailUrl);
+    } catch (e) { alert('Thumbnail failed: ' + (e as Error).message); }
+    finally { setGeneratingThumb(false); }
+  }
+
   function handleGenerateVideo() { if (playlist.length === 0) return; setShowStoryboard(true); }
   function handleStoryboardApprove() { setShowStoryboard(false); setShowResolutionModal(true); }
 
@@ -184,6 +197,24 @@ export default function Builder() {
     setVideoJobs(prev => prev.filter(j => j.id !== jobId));
     if (activeJobId === jobId) setActiveJobId(null);
   }
+
+  // Auto-save to mv_codes when a video job completes
+  const autoSavedJobs = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    videoJobs.forEach(j => {
+      if (j.status === 'completed' && j.outputUrl && !j.savedMvCodeId && !autoSavedJobs.current.has(j.id)) {
+        autoSavedJobs.current.add(j.id);
+        const mvCode = generateMVCode(j.playlist, j.routineName || 'Custom Routine', j.totalTime, j.templateData);
+        const templateForSave = generateTemplateText(j.playlist, j.routineName || 'Custom Routine', j.totalTime, j.templateData);
+        saveMVCode({
+          routine_name: j.routineName || 'Custom Routine', exercise_count: j.playlist.length, duration_minutes: j.totalTime, mv_code: mvCode, template_text: templateForSave,
+          thumbnail_image_url: j.thumbImageUrl || undefined, thumbnail_badge: j.thumbBadge || undefined, thumbnail_title: j.thumbTitle || undefined,
+          video_url: j.outputUrl || undefined, generated_thumbnail_url: j.thumbnailUrl || undefined,
+        }).then((saved) => updateJob(j.id, { mvCodeSaved: true, savedMvCodeId: saved.id }))
+          .catch(err => console.error('Auto-save MV code failed:', err));
+      }
+    });
+  }, [videoJobs]);
 
   async function handleDownloadVideo(jobId: string) {
     const j = videoJobs.find(x => x.id === jobId); if (!j?.outputUrl) return;
@@ -343,6 +374,13 @@ export default function Builder() {
             </div>
             <div className="space-y-2 flex-shrink-0">
               <button onClick={handleGenerateVideo} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg transition-all cursor-pointer border-none min-h-[44px]"><Video className="w-5 h-5" /> Generate Video</button>
+              <button onClick={handleGenerateThumbnail} disabled={generatingThumb || !routineName.trim()} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border-2 border-orange-400 text-orange-600 hover:bg-orange-50 transition-all cursor-pointer bg-white min-h-[44px] disabled:opacity-50">{generatingThumb ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Image className="w-4 h-4" /> Generate Thumbnail</>}</button>
+              {generatedThumbUrl && (
+                <div className="w-full bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2">
+                  <img src={generatedThumbUrl} alt="Thumbnail" className="w-full rounded-lg" />
+                  <button onClick={() => { navigator.clipboard.writeText(generatedThumbUrl); setThumbCopied(true); setTimeout(() => setThumbCopied(false), 2000); }} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs text-orange-600 border border-orange-300 bg-white hover:bg-orange-50 cursor-pointer min-h-[36px]">{thumbCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Thumbnail URL</>}</button>
+                </div>
+              )}
               <button onClick={exportJSON} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border-2 border-teal text-teal hover:bg-teal/5 transition-all cursor-pointer bg-white min-h-[44px]"><Download className="w-4 h-4" /> Export JSON</button>
               <button onClick={handleSave} disabled={saving || !routineName.trim()} className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-2 min-h-[44px] ${!routineName.trim() ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-navy text-navy hover:bg-navy/5 bg-white'}`}><Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save to Library'}</button>
               <button onClick={exportTemplate} disabled={playlist.length === 0} className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-2 min-h-[44px] ${playlist.length === 0 ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-crimson text-crimson hover:bg-crimson/5 bg-white'}`}><FileText className="w-4 h-4" /> Export Template</button>
