@@ -133,7 +133,7 @@ export default function SavedCodes() {
 
   function FolderBar({ section, items }: { section: string; items: {folder?:string|null}[] }) {
     const folders = getFolders(items);
-    if (folders.length === 0 && !creatingFolder) return null;
+    if (items.length === 0) return null;
     const current = activeFolder[section];
     return (
       <div className="mb-3">
