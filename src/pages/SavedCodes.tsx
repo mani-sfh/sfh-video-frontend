@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, deleteVideoJob, cleanupVideoStorage, uploadToVimeo, generateThumbnailOnly } from '../lib/supabase';
 import type { MVCode, ThumbnailImage, SavedTemplate } from '../lib/supabase';
-import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play, Download, Upload, Video, Loader2, ExternalLink, CheckSquare, Square } from 'lucide-react';
+import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play, Download, Upload, Video, Loader2, ExternalLink, CheckSquare, Square, FolderOpen } from 'lucide-react';
 
 function useDragReorder<T extends {id:string}>(items: T[], setItems: (items: T[]) => void, onPersist: (items: T[]) => Promise<void>) {
   const dragItem = useRef<number|null>(null);
@@ -69,13 +69,140 @@ export default function SavedCodes() {
   const [selectMode, setSelectMode] = useState<'images'|'templates'|'codes'|'videos'|null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   function toggleSelect(id: string) { setSelectedIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; }); }
-  function exitSelectMode() { setSelectMode(null); setSelectedIds(new Set()); }
+  function exitSelectMode() { setSelectMode(null); setSelectedIds(new Set()); setShowMoveDropdown(false); }
   function selectAll(ids: string[]) { setSelectedIds(new Set(ids)); }
 
-  async function bulkDeleteImages() { if(!confirm(`Delete ${selectedIds.size} image(s)?`)) return; for(const id of selectedIds){ try{await deleteThumbnailImage(id);}catch(e){} } setThumbImages(p=>p.filter(i=>!selectedIds.has(i.id))); exitSelectMode(); }
-  async function bulkDeleteTemplates() { if(!confirm(`Delete ${selectedIds.size} template(s)?`)) return; for(const id of selectedIds){ try{await deleteSavedTemplate(id);}catch(e){} } setTemplates(p=>p.filter(t=>!selectedIds.has(t.id))); exitSelectMode(); }
-  async function bulkDeleteCodes() { if(!confirm(`Delete ${selectedIds.size} code(s)?`)) return; for(const id of selectedIds){ try{await deleteMVCode(id);}catch(e){} } setCodes(p=>p.filter(c=>!selectedIds.has(c.id))); exitSelectMode(); }
-  async function bulkDeleteVideos() { if(!confirm(`Delete ${selectedIds.size} video(s)?`)) return; for(const id of selectedIds){ try{await deleteVideoJob(id);}catch(e){console.error('Delete failed:',id,e);} } setVideoJobs(p=>p.filter(j=>!selectedIds.has(j.id))); exitSelectMode(); }
+  // Folders
+  const [activeFolder, setActiveFolder] = useState<Record<string, string|null>>({ images: null, templates: null, codes: null, videos: null });
+  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
+  const [creatingFolder, setCreatingFolder] = useState<string|null>(null); // which section
+  const [newFolderName, setNewFolderName] = useState('');
+  const [renamingFolder, setRenamingFolder] = useState<{section:string,old:string}|null>(null);
+  const [renameFolderValue, setRenameFolderValue] = useState('');
+  const [showMoveDropdown, setShowMoveDropdown] = useState(false);
+
+  function getFolders(items: {folder?: string|null}[]) {
+    const folders = new Set<string>();
+    items.forEach(i => { if(i.folder) folders.add(i.folder); });
+    return Array.from(folders).sort();
+  }
+  function filterByFolder(items: any[], section: string) {
+    const f = activeFolder[section];
+    if (f === null) return items; // "All"
+    if (f === '__unfiled__') return items.filter(i => !i.folder);
+    return items.filter(i => i.folder === f);
+  }
+  function toggleFolder(key: string) { setOpenFolders(prev => { const n = new Set(prev); if(n.has(key)) n.delete(key); else n.add(key); return n; }); }
+
+  async function handleCreateFolder(section: string) {
+    if (!newFolderName.trim()) return;
+    setCreatingFolder(null); setNewFolderName('');
+    // Folder is just a label — it exists when items have it
+    // Set active folder to the new one
+    setActiveFolder(p => ({...p, [section]: newFolderName.trim()}));
+  }
+
+  async function handleRenameFolder(section: string, oldName: string, newName: string) {
+    if (!newName.trim() || newName.trim() === oldName) { setRenamingFolder(null); return; }
+    const name = newName.trim();
+    if (section === 'images') { for(const i of thumbImages.filter(x=>x.folder===oldName)){try{await updateThumbnailImage(i.id,{folder:name});}catch(e){}} setThumbImages(p=>p.map(i=>i.folder===oldName?{...i,folder:name}:i)); }
+    if (section === 'templates') { for(const t of templates.filter(x=>x.folder===oldName)){try{await updateSavedTemplate(t.id,{folder:name});}catch(e){}} setTemplates(p=>p.map(t=>t.folder===oldName?{...t,folder:name}:t)); }
+    if (section === 'codes') { for(const c of codes.filter(x=>x.folder===oldName)){try{await updateMVCode(c.id,{folder:name});}catch(e){}} setCodes(p=>p.map(c=>c.folder===oldName?{...c,folder:name}:c)); }
+    if (section === 'videos') { for(const v of videoJobs.filter(x=>x.folder===oldName)){try{await updateVideoJob(v.id,{folder:name});}catch(e){}} setVideoJobs(p=>p.map(v=>v.folder===oldName?{...v,folder:name}:v)); }
+    setActiveFolder(p => ({...p, [section]: name}));
+    setRenamingFolder(null);
+  }
+
+  async function handleDeleteFolder(section: string, folderName: string) {
+    if (!confirm(`Remove folder "${folderName}"? Items will be moved to Unfiled.`)) return;
+    if (section === 'images') { for(const i of thumbImages.filter(x=>x.folder===folderName)){try{await updateThumbnailImage(i.id,{folder:null});}catch(e){}} setThumbImages(p=>p.map(i=>i.folder===folderName?{...i,folder:null}:i)); }
+    if (section === 'templates') { for(const t of templates.filter(x=>x.folder===folderName)){try{await updateSavedTemplate(t.id,{folder:null});}catch(e){}} setTemplates(p=>p.map(t=>t.folder===folderName?{...t,folder:null}:t)); }
+    if (section === 'codes') { for(const c of codes.filter(x=>x.folder===folderName)){try{await updateMVCode(c.id,{folder:null});}catch(e){}} setCodes(p=>p.map(c=>c.folder===folderName?{...c,folder:null}:c)); }
+    if (section === 'videos') { for(const v of videoJobs.filter(x=>x.folder===folderName)){try{await updateVideoJob(v.id,{folder:null});}catch(e){}} setVideoJobs(p=>p.map(v=>v.folder===folderName?{...v,folder:null}:v)); }
+    setActiveFolder(p => ({...p, [section]: null}));
+  }
+
+  async function handleMoveToFolder(section: string, folderName: string|null) {
+    const ids = selectedIds;
+    if (section === 'images') { for(const id of ids){try{await updateThumbnailImage(id,{folder:folderName});}catch(e){}} setThumbImages(p=>p.map(i=>ids.has(i.id)?{...i,folder:folderName}:i)); }
+    if (section === 'templates') { for(const id of ids){try{await updateSavedTemplate(id,{folder:folderName});}catch(e){}} setTemplates(p=>p.map(t=>ids.has(t.id)?{...t,folder:folderName}:t)); }
+    if (section === 'codes') { for(const id of ids){try{await updateMVCode(id,{folder:folderName});}catch(e){}} setCodes(p=>p.map(c=>ids.has(c.id)?{...c,folder:folderName}:c)); }
+    if (section === 'videos') { for(const id of ids){try{await updateVideoJob(id,{folder:folderName});}catch(e){}} setVideoJobs(p=>p.map(v=>ids.has(v.id)?{...v,folder:folderName}:v)); }
+    exitSelectMode();
+  }
+
+  function FolderBar({ section, items }: { section: string; items: {folder?:string|null}[] }) {
+    const folders = getFolders(items);
+    if (folders.length === 0 && !creatingFolder) return null;
+    const current = activeFolder[section];
+    return (
+      <div className="mb-3">
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <button onClick={()=>setActiveFolder(p=>({...p,[section]:null}))} className={`text-xs font-bold px-3 py-1 rounded-full cursor-pointer border-none transition-all ${current===null?'bg-navy text-white':'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>All ({items.length})</button>
+          {folders.map(f => {
+            const count = items.filter(i=>i.folder===f).length;
+            return renamingFolder?.section===section && renamingFolder?.old===f ? (
+              <div key={f} className="flex items-center gap-1">
+                <input type="text" value={renameFolderValue} onChange={e=>setRenameFolderValue(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleRenameFolder(section,f,renameFolderValue);if(e.key==='Escape')setRenamingFolder(null);}} className="px-2 py-0.5 rounded-full border-2 border-navy text-xs font-bold focus:outline-none w-32" autoFocus/>
+                <button onClick={()=>handleRenameFolder(section,f,renameFolderValue)} className="text-teal cursor-pointer bg-transparent border-none p-0"><Check className="w-3.5 h-3.5"/></button>
+                <button onClick={()=>setRenamingFolder(null)} className="text-gray-400 cursor-pointer bg-transparent border-none p-0"><X className="w-3.5 h-3.5"/></button>
+              </div>
+            ) : (
+              <div key={f} className="flex items-center group">
+                <button onClick={()=>setActiveFolder(p=>({...p,[section]:f}))} className={`text-xs font-bold px-3 py-1 rounded-l-full cursor-pointer border-none transition-all ${current===f?'bg-crimson text-white':'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{f} ({count})</button>
+                <div className={`flex items-center rounded-r-full overflow-hidden ${current===f?'bg-crimson/80':'bg-gray-100 group-hover:bg-gray-200'}`}>
+                  <button onClick={e=>{e.stopPropagation();setRenamingFolder({section,old:f});setRenameFolderValue(f);}} className={`cursor-pointer bg-transparent border-none p-0 px-1 ${current===f?'text-white/70 hover:text-white':'text-gray-400 hover:text-navy'}`}><Pencil className="w-3 h-3"/></button>
+                  <button onClick={e=>{e.stopPropagation();handleDeleteFolder(section,f);}} className={`cursor-pointer bg-transparent border-none p-0 px-1 ${current===f?'text-white/70 hover:text-white':'text-gray-400 hover:text-red-500'}`}><X className="w-3 h-3"/></button>
+                </div>
+              </div>
+            );
+          })}
+          {items.filter(i=>!i.folder).length > 0 && folders.length > 0 && (
+            <button onClick={()=>setActiveFolder(p=>({...p,[section]:'__unfiled__'}))} className={`text-xs font-bold px-3 py-1 rounded-full cursor-pointer border-none transition-all ${current==='__unfiled__'?'bg-gray-500 text-white':'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>Unfiled ({items.filter(i=>!i.folder).length})</button>
+          )}
+          {creatingFolder===section ? (
+            <div className="flex items-center gap-1">
+              <input type="text" value={newFolderName} onChange={e=>setNewFolderName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleCreateFolder(section);if(e.key==='Escape'){setCreatingFolder(null);setNewFolderName('');}}} placeholder="Folder name" className="px-2 py-0.5 rounded-full border-2 border-navy text-xs font-bold focus:outline-none w-28" autoFocus/>
+              <button onClick={()=>handleCreateFolder(section)} className="text-teal cursor-pointer bg-transparent border-none p-0"><Check className="w-3.5 h-3.5"/></button>
+              <button onClick={()=>{setCreatingFolder(null);setNewFolderName('');}} className="text-gray-400 cursor-pointer bg-transparent border-none p-0"><X className="w-3.5 h-3.5"/></button>
+            </div>
+          ) : (
+            <button onClick={()=>{setCreatingFolder(section);setNewFolderName('');}} className="text-xs font-bold px-2 py-1 rounded-full cursor-pointer border border-dashed border-gray-300 text-gray-400 hover:text-navy hover:border-navy bg-transparent">+ Folder</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function SelectBar({ section, items }: { section: string; items: {id:string;folder?:string|null}[] }) {
+    const folders = getFolders(items);
+    const bulkDelete = section === 'images' ? bulkDeleteImages : section === 'templates' ? bulkDeleteTemplates : section === 'codes' ? bulkDeleteCodes : bulkDeleteVideos;
+    return (
+      <div className="flex items-center gap-2 mb-2 px-2 flex-wrap">
+        <button onClick={()=>selectAll(filterByFolder(items, section).map(i=>i.id))} className="text-xs font-bold text-navy cursor-pointer bg-transparent border-none p-0 hover:underline">Select All</button>
+        <span className="text-xs text-gray-300">|</span>
+        <span className="text-xs font-bold text-gray-400">{selectedIds.size} selected</span>
+        <span className="flex-1"/>
+        {selectedIds.size > 0 && (
+          <div className="relative">
+            <button onClick={()=>setShowMoveDropdown(!showMoveDropdown)} className="text-xs font-bold text-navy cursor-pointer bg-navy/5 hover:bg-navy/10 border border-navy/20 rounded-lg px-3 py-1">Move to →</button>
+            {showMoveDropdown && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[160px] py-1">
+                <button onClick={()=>handleMoveToFolder(section,null)} className="w-full text-left px-3 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-50 cursor-pointer border-none bg-transparent">Unfiled</button>
+                {folders.map(f => (
+                  <button key={f} onClick={()=>handleMoveToFolder(section,f)} className="w-full text-left px-3 py-1.5 text-xs font-bold text-navy hover:bg-cream cursor-pointer border-none bg-transparent">{f}</button>
+                ))}
+                <div className="border-t border-gray-100 mt-1 pt-1">
+                  <button onClick={()=>{const name=prompt('New folder name:');if(name?.trim()){handleMoveToFolder(section,name.trim());}}} className="w-full text-left px-3 py-1.5 text-xs font-bold text-crimson hover:bg-crimson/5 cursor-pointer border-none bg-transparent">+ New Folder</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        <button onClick={bulkDelete} disabled={selectedIds.size===0} className="text-xs font-bold text-red-500 cursor-pointer bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-1 disabled:opacity-40"><Trash2 className="w-3 h-3 inline mr-1"/>Delete</button>
+      </div>
+    );
+  }
 
   useEffect(() => { async function load() { try { const [c,i,t,v] = await Promise.all([getMVCodes(),getThumbnailImages(),getSavedTemplates(),getRecentVideoJobs()]); setCodes(c); setThumbImages(i); setTemplates(t); setVideoJobs(v); } catch(e){console.error(e);} finally{setLoading(false);} } load(); }, []);
 
@@ -167,14 +294,9 @@ export default function SavedCodes() {
             <button onClick={handleAddImage} disabled={savingImage||!newImgLabel.trim()||!newImgUrl.trim()} className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-navy to-crimson hover:shadow-md cursor-pointer border-none disabled:opacity-50 whitespace-nowrap min-h-[44px]"><ImagePlus className="w-4 h-4"/>{savingImage?'...':'Save'}</button>
           </div></div>
           {thumbImages.length>0?(<div className="space-y-1">
-            {selectMode==='images'&&(<div className="flex items-center gap-2 mb-2 px-2">
-              <button onClick={()=>selectAll(thumbImages.map(i=>i.id))} className="text-xs font-bold text-navy cursor-pointer bg-transparent border-none p-0 hover:underline">Select All</button>
-              <span className="text-xs text-gray-300">|</span>
-              <span className="text-xs font-bold text-gray-400">{selectedIds.size} selected</span>
-              <span className="flex-1"/>
-              <button onClick={bulkDeleteImages} disabled={selectedIds.size===0} className="text-xs font-bold text-red-500 cursor-pointer bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-1 disabled:opacity-40"><Trash2 className="w-3 h-3 inline mr-1"/>Delete Selected</button>
-            </div>)}
-            {thumbImages.map((img,idx)=>(
+            <FolderBar section="images" items={thumbImages} />
+            {selectMode==='images'&&<SelectBar section="images" items={thumbImages} />}
+            {filterByFolder(thumbImages, 'images').map((img,idx)=>(
             <div key={img.id} draggable={editImgId!==img.id&&selectMode!=='images'} onDragStart={()=>imgDrag.onDragStart(idx)} onDragEnter={()=>imgDrag.onDragEnter(idx)} onDragEnd={imgDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className={`bg-white rounded-xl border border-gray-200 overflow-hidden ${editImgId!==img.id&&selectMode!=='images'?'cursor-grab active:cursor-grabbing':''} hover:shadow-sm transition-shadow`}>
               <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" onClick={()=>selectMode==='images'?toggleSelect(img.id):editImgId!==img.id&&toggleItem('img-'+img.id)}>
                 {selectMode==='images'&&<div className="flex-shrink-0">{selectedIds.has(img.id)?<CheckSquare className="w-5 h-5 text-crimson"/>:<Square className="w-5 h-5 text-gray-300"/>}</div>}
@@ -227,14 +349,9 @@ export default function SavedCodes() {
             </div>
           )}
           <div className="space-y-1">
-            {selectMode==='templates'&&(<div className="flex items-center gap-2 mb-2 px-2">
-              <button onClick={()=>selectAll(templates.map(t=>t.id))} className="text-xs font-bold text-navy cursor-pointer bg-transparent border-none p-0 hover:underline">Select All</button>
-              <span className="text-xs text-gray-300">|</span>
-              <span className="text-xs font-bold text-gray-400">{selectedIds.size} selected</span>
-              <span className="flex-1"/>
-              <button onClick={bulkDeleteTemplates} disabled={selectedIds.size===0} className="text-xs font-bold text-red-500 cursor-pointer bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-1 disabled:opacity-40"><Trash2 className="w-3 h-3 inline mr-1"/>Delete Selected</button>
-            </div>)}
-            {templates.length>0?templates.map((t,idx)=>(
+            <FolderBar section="templates" items={templates} />
+            {selectMode==='templates'&&<SelectBar section="templates" items={templates} />}
+            {filterByFolder(templates, 'templates').length>0?filterByFolder(templates, 'templates').map((t,idx)=>(
             <div key={t.id} draggable={editTplId!==t.id&&selectMode!=='templates'} onDragStart={()=>tplDrag.onDragStart(idx)} onDragEnter={()=>tplDrag.onDragEnter(idx)} onDragEnd={tplDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className={`bg-white rounded-xl border border-gray-200 overflow-hidden ${editTplId!==t.id&&selectMode!=='templates'?'cursor-grab active:cursor-grabbing':''} hover:shadow-sm transition-shadow`}>
               {selectMode==='templates'&&editTplId!==t.id ? (
                 <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={()=>toggleSelect(t.id)}>
@@ -293,14 +410,9 @@ export default function SavedCodes() {
           {showCodes?<ChevronUp className="w-4 h-4 text-gray-400"/>:<ChevronDown className="w-4 h-4 text-gray-400"/>}
         </button>
         {showCodes&&(<div className="mt-3 space-y-1">
-          {selectMode==='codes'&&(<div className="flex items-center gap-2 mb-2 px-2">
-            <button onClick={()=>selectAll(codes.map(c=>c.id))} className="text-xs font-bold text-navy cursor-pointer bg-transparent border-none p-0 hover:underline">Select All</button>
-            <span className="text-xs text-gray-300">|</span>
-            <span className="text-xs font-bold text-gray-400">{selectedIds.size} selected</span>
-            <span className="flex-1"/>
-            <button onClick={bulkDeleteCodes} disabled={selectedIds.size===0} className="text-xs font-bold text-red-500 cursor-pointer bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-1 disabled:opacity-40"><Trash2 className="w-3 h-3 inline mr-1"/>Delete Selected</button>
-          </div>)}
-          {codes.length>0?codes.map((code,idx)=>(
+          <FolderBar section="codes" items={codes} />
+          {selectMode==='codes'&&<SelectBar section="codes" items={codes} />}
+          {filterByFolder(codes, 'codes').length>0?filterByFolder(codes, 'codes').map((code,idx)=>(
             <div key={code.id} draggable={selectMode!=='codes'} onDragStart={()=>codeDrag.onDragStart(idx)} onDragEnter={()=>codeDrag.onDragEnter(idx)} onDragEnd={codeDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className={`bg-white rounded-xl border border-gray-200 overflow-hidden ${selectMode!=='codes'?'cursor-grab active:cursor-grabbing':''} hover:shadow-sm transition-shadow`}>
               <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" onClick={()=>selectMode==='codes'?toggleSelect(code.id):editCodeNameId===code.id?null:toggleItem('code-'+code.id)}>
                 {selectMode==='codes'?<div className="flex-shrink-0">{selectedIds.has(code.id)?<CheckSquare className="w-5 h-5 text-crimson"/>:<Square className="w-5 h-5 text-gray-300"/>}</div>:<GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0"/>}
@@ -388,14 +500,9 @@ export default function SavedCodes() {
           {showVideos?<ChevronUp className="w-4 h-4 text-gray-400"/>:<ChevronDown className="w-4 h-4 text-gray-400"/>}
         </button>
         {showVideos&&(<div className="mt-3">
-          {selectMode==='videos'&&(<div className="flex items-center gap-2 mb-2 px-2">
-            <button onClick={()=>selectAll(videoJobs.map(j=>j.id))} className="text-xs font-bold text-navy cursor-pointer bg-transparent border-none p-0 hover:underline">Select All</button>
-            <span className="text-xs text-gray-300">|</span>
-            <span className="text-xs font-bold text-gray-400">{selectedIds.size} selected</span>
-            <span className="flex-1"/>
-            <button onClick={bulkDeleteVideos} disabled={selectedIds.size===0} className="text-xs font-bold text-red-500 cursor-pointer bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-1 disabled:opacity-40"><Trash2 className="w-3 h-3 inline mr-1"/>Delete Selected</button>
-          </div>)}
-          {videoJobs.length>0?(<div className="space-y-2">{videoJobs.map((job)=>{
+          <FolderBar section="videos" items={videoJobs} />
+          {selectMode==='videos'&&<SelectBar section="videos" items={videoJobs} />}
+          {filterByFolder(videoJobs, 'videos').length>0?(<div className="space-y-2">{filterByFolder(videoJobs, 'videos').map((job)=>{
             const date = job.completed_at ? new Date(job.completed_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : '';
             return (
             <div key={job.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
