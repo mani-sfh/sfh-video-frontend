@@ -349,6 +349,7 @@ export default function LibraryBuilder() {
   const [showAddModule, setShowAddModule] = useState(false);
   const [newModuleName, setNewModuleName] = useState("");
   const [addingRoutine, setAddingRoutine] = useState<{ moduleIndex: number; name: string; mvCode: string } | null>(null);
+  const [selectedCodeIds, setSelectedCodeIds] = useState<Set<string>>(new Set());
   const [editingRoutineCode, setEditingRoutineCode] = useState<{ mi: number; ri: number; name: string; mvCode: string } | null>(null);
   const [copiedRoutineId, setCopiedRoutineId] = useState<string | null>(null);
   const [movingRoutine, setMovingRoutine] = useState<{ mi: number; ri: number } | null>(null);
@@ -515,6 +516,20 @@ export default function LibraryBuilder() {
     });
     updateProgram(activeProgram.id, { modules: mods });
     setAddingRoutine(null);
+    setSelectedCodeIds(new Set());
+  }
+
+  function addMultipleRoutines(mi: number, codeIds: Set<string>) {
+    const codesToAdd = savedMVCodes.filter(c => codeIds.has(c.id));
+    if (codesToAdd.length === 0) return;
+    const mods = activeProgram.modules.map((m, i) => {
+      if (i !== mi) return m;
+      const newRoutines = codesToAdd.map(c => ({ name: c.routine_name, mvCode: c.mv_code }));
+      return { ...m, routines: [...m.routines, ...newRoutines] };
+    });
+    updateProgram(activeProgram.id, { modules: mods });
+    setAddingRoutine(null);
+    setSelectedCodeIds(new Set());
   }
 
   function updateRoutineCode(mi: number, ri: number, name: string, mvCode: string) {
@@ -813,25 +828,40 @@ export default function LibraryBuilder() {
           <div style={S.modalBox}>
             <div style={{ padding: 20, borderBottom: "1px solid #f1f5f9" }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0C115B" }}>Add Routine to "{activeProgram?.modules[addingRoutine.moduleIndex]?.name}"</h3>
-              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Pick from saved codes or paste MV code manually.</p>
+              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Select multiple codes or paste MV code manually.</p>
             </div>
             <div style={{ padding: 20, flex: 1, overflow: "auto" }}>
-              {/* Saved MV Code Picker */}
+              {/* Multi-select MV Code Picker */}
               {savedMVCodes.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                   <button onClick={() => { setShowCodePicker(!showCodePicker); setCodePickerSearch(""); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 8, border: "2px solid rgba(166,30,81,0.3)", background: "rgba(166,30,81,0.05)", cursor: "pointer", fontFamily: "inherit" }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#A61E51" }}>Pick from {savedMVCodes.length} saved MV code{savedMVCodes.length !== 1 ? "s" : ""}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#A61E51" }}>
+                      {selectedCodeIds.size > 0 ? `${selectedCodeIds.size} selected` : `Pick from ${savedMVCodes.length} saved MV code${savedMVCodes.length !== 1 ? "s" : ""}`}
+                    </span>
                     <span style={{ fontSize: 12, color: "#A61E51", transform: showCodePicker ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
                   </button>
                   {showCodePicker && (
-                    <div style={{ border: "2px solid rgba(12,17,91,0.15)", borderRadius: 8, marginTop: 4, maxHeight: 220, overflow: "auto", background: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-                      <input type="text" value={codePickerSearch} onChange={e => setCodePickerSearch(e.target.value)} placeholder="Search by routine name..." style={{ width: "100%", padding: "8px 12px", border: "none", borderBottom: "1px solid #f1f5f9", fontSize: 13, fontWeight: 600, fontFamily: "inherit", outline: "none", position: "sticky", top: 0, background: "#fff" }} />
-                      {savedMVCodes.filter(c => !codePickerSearch || c.routine_name.toLowerCase().includes(codePickerSearch.toLowerCase())).map(c => (
-                        <button key={c.id} onClick={() => { setAddingRoutine({ ...addingRoutine, name: c.routine_name, mvCode: c.mv_code }); setShowCodePicker(false); setCodePickerSearch(""); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", border: "none", borderBottom: "1px solid #f8fafc", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0C115B" }}>{c.routine_name}</span>
-                          <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{c.exercise_count} ex · ~{c.duration_minutes}m</span>
-                        </button>
-                      ))}
+                    <div style={{ border: "2px solid rgba(12,17,91,0.15)", borderRadius: 8, marginTop: 4, maxHeight: 280, overflow: "auto", background: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+                      <div style={{ position: "sticky", top: 0, background: "#fff", zIndex: 1, borderBottom: "1px solid #f1f5f9" }}>
+                        <input type="text" value={codePickerSearch} onChange={e => setCodePickerSearch(e.target.value)} placeholder="Search by routine name..." style={{ width: "100%", padding: "8px 12px", border: "none", fontSize: 13, fontWeight: 600, fontFamily: "inherit", outline: "none" }} />
+                        {savedMVCodes.filter(c => !codePickerSearch || c.routine_name.toLowerCase().includes(codePickerSearch.toLowerCase())).length > 1 && (
+                          <div style={{ display: "flex", gap: 8, padding: "4px 12px 8px", borderTop: "1px solid #f8fafc" }}>
+                            <button onClick={() => { const filtered = savedMVCodes.filter(c => !codePickerSearch || c.routine_name.toLowerCase().includes(codePickerSearch.toLowerCase())); setSelectedCodeIds(new Set(filtered.map(c => c.id))); }} style={{ fontSize: 11, fontWeight: 700, color: "#0C115B", cursor: "pointer", background: "transparent", border: "none", padding: 0, fontFamily: "inherit" }}>Select All</button>
+                            <span style={{ fontSize: 11, color: "#cbd5e1" }}>|</span>
+                            <button onClick={() => setSelectedCodeIds(new Set())} style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", cursor: "pointer", background: "transparent", border: "none", padding: 0, fontFamily: "inherit" }}>Clear</button>
+                          </div>
+                        )}
+                      </div>
+                      {savedMVCodes.filter(c => !codePickerSearch || c.routine_name.toLowerCase().includes(codePickerSearch.toLowerCase())).map(c => {
+                        const isSelected = selectedCodeIds.has(c.id);
+                        return (
+                          <button key={c.id} onClick={() => { setSelectedCodeIds(prev => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n; }); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "none", borderBottom: "1px solid #f8fafc", background: isSelected ? "rgba(166,30,81,0.08)" : "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                            <span style={{ width: 20, height: 20, borderRadius: 4, border: isSelected ? "2px solid #A61E51" : "2px solid #cbd5e1", background: isSelected ? "#A61E51" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#fff", fontSize: 12, fontWeight: 700 }}>{isSelected ? "✓" : ""}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#0C115B", flex: 1 }}>{c.routine_name}</span>
+                            <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, flexShrink: 0 }}>{c.exercise_count} ex · ~{c.duration_minutes}m</span>
+                          </button>
+                        );
+                      })}
                       {savedMVCodes.filter(c => !codePickerSearch || c.routine_name.toLowerCase().includes(codePickerSearch.toLowerCase())).length === 0 && (
                         <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, padding: 12, margin: 0 }}>No matches</p>
                       )}
@@ -839,26 +869,49 @@ export default function LibraryBuilder() {
                   )}
                 </div>
               )}
-              <div style={{ marginBottom: 12 }}>
-                <label style={S.label}>Routine Name</label>
-                <input style={S.input} value={addingRoutine.name} onChange={e => setAddingRoutine({ ...addingRoutine, name: e.target.value })} placeholder="e.g. Core & Posture Awareness" autoFocus />
-              </div>
-              <div>
-                <label style={S.label}>MV Code</label>
-                <textarea style={S.textarea} value={addingRoutine.mvCode} onChange={e => setAddingRoutine({ ...addingRoutine, mvCode: e.target.value })} placeholder="Paste the full MV code here..." />
-              </div>
-              {addingRoutine.mvCode && !addingRoutine.mvCode.includes("generateTracker") && (
-                <div style={{ background: "#fffbeb", border: "1px solid #fbbf24", borderRadius: 8, padding: 10, marginTop: 10, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
-                  No tracker function found. Make sure you pasted the complete MV code.
+              {/* Manual entry (only show when no codes selected) */}
+              {selectedCodeIds.size === 0 && (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={S.label}>Routine Name</label>
+                    <input style={S.input} value={addingRoutine.name} onChange={e => setAddingRoutine({ ...addingRoutine, name: e.target.value })} placeholder="e.g. Core & Posture Awareness" />
+                  </div>
+                  <div>
+                    <label style={S.label}>MV Code</label>
+                    <textarea style={S.textarea} value={addingRoutine.mvCode} onChange={e => setAddingRoutine({ ...addingRoutine, mvCode: e.target.value })} placeholder="Paste the full MV code here..." />
+                  </div>
+                  {addingRoutine.mvCode && !addingRoutine.mvCode.includes("generateTracker") && (
+                    <div style={{ background: "#fffbeb", border: "1px solid #fbbf24", borderRadius: 8, padding: 10, marginTop: 10, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
+                      No tracker function found. Make sure you pasted the complete MV code.
+                    </div>
+                  )}
+                </>
+              )}
+              {/* Selected summary */}
+              {selectedCodeIds.size > 0 && (
+                <div style={{ background: "rgba(166,30,81,0.05)", border: "1px solid rgba(166,30,81,0.2)", borderRadius: 8, padding: 12 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#A61E51", margin: "0 0 6px 0" }}>{selectedCodeIds.size} routine{selectedCodeIds.size !== 1 ? "s" : ""} selected:</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {savedMVCodes.filter(c => selectedCodeIds.has(c.id)).map(c => (
+                      <span key={c.id} style={{ fontSize: 11, fontWeight: 700, color: "#0C115B", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 6, padding: "3px 8px" }}>{c.routine_name}</span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
             <div style={{ padding: 16, borderTop: "1px solid #f1f5f9", display: "flex", gap: 10 }}>
-              <button onClick={() => setAddingRoutine(null)} style={{ ...S.btnOutline("#94a3b8"), flex: 1 }}>Cancel</button>
-              <button onClick={() => addRoutine(addingRoutine.moduleIndex, addingRoutine.name, addingRoutine.mvCode)} disabled={!addingRoutine.name.trim() || !addingRoutine.mvCode.trim()}
-                style={{ ...S.btnPrimary, flex: 1, opacity: addingRoutine.name.trim() && addingRoutine.mvCode.trim() ? 1 : 0.4 }}>
-                Add Routine
-              </button>
+              <button onClick={() => { setAddingRoutine(null); setSelectedCodeIds(new Set()); }} style={{ ...S.btnOutline("#94a3b8"), flex: 1 }}>Cancel</button>
+              {selectedCodeIds.size > 0 ? (
+                <button onClick={() => addMultipleRoutines(addingRoutine.moduleIndex, selectedCodeIds)}
+                  style={{ ...S.btnPrimary, flex: 1 }}>
+                  Add {selectedCodeIds.size} Routine{selectedCodeIds.size !== 1 ? "s" : ""}
+                </button>
+              ) : (
+                <button onClick={() => addRoutine(addingRoutine.moduleIndex, addingRoutine.name, addingRoutine.mvCode)} disabled={!addingRoutine.name.trim() || !addingRoutine.mvCode.trim()}
+                  style={{ ...S.btnPrimary, flex: 1, opacity: addingRoutine.name.trim() && addingRoutine.mvCode.trim() ? 1 : 0.4 }}>
+                  Add Routine
+                </button>
+              )}
             </div>
           </div>
         </div>
