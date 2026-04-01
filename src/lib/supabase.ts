@@ -108,7 +108,7 @@ export async function getVideoJob(jobId: string) {
   return data;
 }
 
-export async function getRecentVideoJobs(limit = 20) {
+export async function getRecentVideoJobs(limit = 100) {
   const { data, error } = await supabase
     .from('video_jobs')
     .select('*')
@@ -138,20 +138,15 @@ export async function deleteVideoJob(jobId: string) {
 export async function cleanupVideoStorage(jobId: string) {
   // Get the job to find actual file paths
   const { data: job } = await supabase.from('video_jobs').select('output_url, thumbnail_url').eq('id', jobId).single();
-  // Delete MP4 from storage
+  // Delete MP4 from storage (keep thumbnail PNG — it's used for MemberVault/Vimeo)
   if (job?.output_url) {
     const videoPath = job.output_url.split('/videos/').pop();
     if (videoPath) await supabase.storage.from('videos').remove([videoPath]);
   }
-  // Delete thumbnail PNG from storage
-  if (job?.thumbnail_url) {
-    const thumbPath = job.thumbnail_url.split('/videos/').pop();
-    if (thumbPath) await supabase.storage.from('videos').remove([thumbPath]);
-  }
-  // Clear URLs from the database row (keep the row itself)
+  // Clear only the video URL (keep thumbnail_url intact)
   const { error } = await supabase
     .from('video_jobs')
-    .update({ output_url: null, thumbnail_url: null })
+    .update({ output_url: null })
     .eq('id', jobId);
   if (error) throw error;
 }
