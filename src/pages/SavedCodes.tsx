@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, deleteVideoJob, cleanupVideoStorage, uploadToVimeo } from '../lib/supabase';
+import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, deleteVideoJob, cleanupVideoStorage, uploadToVimeo, generateThumbnailOnly } from '../lib/supabase';
 import type { MVCode, ThumbnailImage, SavedTemplate } from '../lib/supabase';
 import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play, Download, Upload, Video, Loader2, ExternalLink, CheckSquare, Square } from 'lucide-react';
 
@@ -62,6 +62,8 @@ export default function SavedCodes() {
   const [vimeoIdInput, setVimeoIdInput] = useState('');
   const [editCodeNameId, setEditCodeNameId] = useState<string | null>(null);
   const [editCodeNameValue, setEditCodeNameValue] = useState('');
+  const [generatingThumbId, setGeneratingThumbId] = useState<string | null>(null);
+  const [generatedThumbUrls, setGeneratedThumbUrls] = useState<Record<string, string>>({});
 
   // Multi-select
   const [selectMode, setSelectMode] = useState<'images'|'templates'|'codes'|'videos'|null>(null);
@@ -96,6 +98,24 @@ export default function SavedCodes() {
   async function saveEditTemplate() { if(!editTplId||!editTplLabel.trim())return; try{await updateSavedTemplate(editTplId,{label:editTplLabel.trim(),template_text:editTplText,thumbnail_image_url:editTplThumb.trim()||undefined});setTemplates(p=>p.map(t=>t.id===editTplId?{...t,label:editTplLabel.trim(),template_text:editTplText,thumbnail_image_url:editTplThumb.trim()||undefined}:t));setEditTplId(null);}catch(e){} }
   async function handleDeleteCode(id:string) { if(!confirm('Delete?'))return; try{await deleteMVCode(id);setCodes(p=>p.filter(c=>c.id!==id));}catch(e){} }
   async function handleSaveCodeName(id: string) { if(!editCodeNameValue.trim()) return; try { await updateMVCode(id, { routine_name: editCodeNameValue.trim() }); setCodes(p=>p.map(c=>c.id===id?{...c,routine_name:editCodeNameValue.trim()}:c)); setEditCodeNameId(null); } catch(e){ console.error(e); } }
+
+  async function handleGenerateThumbForCode(code: MVCode) {
+    setGeneratingThumbId(code.id);
+    try {
+      const result = await generateThumbnailOnly({
+        routineName: code.routine_name,
+        totalDuration: `~${code.duration_minutes} min`,
+        thumbnailImageUrl: code.thumbnail_image_url || undefined,
+        thumbnailBadge: code.thumbnail_badge || undefined,
+        thumbnailTitle: code.thumbnail_title || undefined,
+      });
+      setGeneratedThumbUrls(prev => ({ ...prev, [code.id]: result.thumbnailUrl }));
+      // Save the URL to the MV code record
+      await updateMVCode(code.id, { generated_thumbnail_url: result.thumbnailUrl });
+      setCodes(p => p.map(c => c.id === code.id ? { ...c, generated_thumbnail_url: result.thumbnailUrl } : c));
+    } catch (e) { alert('Thumbnail failed: ' + (e as Error).message); }
+    finally { setGeneratingThumbId(null); }
+  }
 
   async function handleSaveVimeoId(codeId: string) {
     let vid = vimeoIdInput.trim();
@@ -314,11 +334,18 @@ export default function SavedCodes() {
                     <button onClick={()=>doCopy(code.mv_code,code.id,'mv')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs text-white bg-gradient-to-r from-navy to-crimson cursor-pointer border-none">{copiedId===code.id+'mv'?<><CheckCircle2 className="w-3 h-3"/>Copied</>:<><Copy className="w-3 h-3"/>MV Code</>}</button>
                     {code.template_text&&<button onClick={()=>{navigate('/',{state:{templateText:code.template_text,thumbnailImageUrl:code.thumbnail_image_url||''}});}} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-navy text-navy hover:bg-navy/5 cursor-pointer bg-white"><Play className="w-3 h-3"/>Rebuild</button>}
                     {code.template_text&&<button onClick={()=>doCopy(code.template_text!,code.id,'tpl')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-crimson text-crimson cursor-pointer bg-white">{copiedId===code.id+'tpl'?'✓ Copied':'Template'}</button>}
+                    <button onClick={()=>handleGenerateThumbForCode(code)} disabled={generatingThumbId===code.id} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-orange-400 text-orange-600 hover:bg-orange-50 cursor-pointer bg-white disabled:opacity-50">{generatingThumbId===code.id?<><Loader2 className="w-3 h-3 animate-spin"/>Generating...</>:<><Image className="w-3 h-3"/>Generate Thumbnail</>}</button>
                   </div>
+                  {/* Generated thumbnail preview */}
+                  {(generatedThumbUrls[code.id] || code.generated_thumbnail_url) && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 mb-2">
+                      <img src={generatedThumbUrls[code.id] || code.generated_thumbnail_url!} alt="Thumbnail" className="w-full max-w-xs rounded-lg mb-2" />
+                      <button onClick={()=>doCopy(generatedThumbUrls[code.id] || code.generated_thumbnail_url!,code.id,'thumb')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs text-orange-600 border border-orange-300 bg-white hover:bg-orange-50 cursor-pointer">{copiedId===code.id+'thumb'?<><Check className="w-3 h-3"/>Copied!</>:<><Copy className="w-3 h-3"/>Copy Thumbnail URL</>}</button>
+                    </div>
+                  )}
                   <div className="flex gap-3 flex-wrap items-center">
                     {code.video_url&&<button onClick={()=>doCopy(code.video_url!,code.id,'vid')} className="text-xs font-bold text-teal cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'vid'?'✓':'Video URL'}</button>}
                     {code.thumbnail_image_url&&<button onClick={()=>doCopy(code.thumbnail_image_url!,code.id,'img')} className="text-xs font-bold text-purple-600 cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'img'?'✓':'Overlay URL'}</button>}
-                    {code.generated_thumbnail_url&&<button onClick={()=>doCopy(code.generated_thumbnail_url!,code.id,'thumb')} className="text-xs font-bold text-orange-600 cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'thumb'?'✓ Copied':'Copy Thumbnail URL'}</button>}
                     <button onClick={()=>togglePreview(code.id,'mv')} className="text-xs font-bold text-purple-700 cursor-pointer bg-transparent border-none p-0 flex items-center gap-0.5">{previewId===code.id&&previewType==='mv'?<ChevronUp className="w-3 h-3"/>:<ChevronDown className="w-3 h-3"/>}Preview</button>
                     <button onClick={()=>handleDeleteCode(code.id)} className="text-xs font-bold text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><Trash2 className="w-3 h-3"/></button>
                   </div>
