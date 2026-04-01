@@ -60,6 +60,8 @@ export default function SavedCodes() {
   const [vimeoUploading, setVimeoUploading] = useState<string|null>(null);
   const [editingVimeoId, setEditingVimeoId] = useState<string | null>(null);
   const [vimeoIdInput, setVimeoIdInput] = useState('');
+  const [editCodeNameId, setEditCodeNameId] = useState<string | null>(null);
+  const [editCodeNameValue, setEditCodeNameValue] = useState('');
 
   // Multi-select
   const [selectMode, setSelectMode] = useState<'images'|'templates'|'codes'|'videos'|null>(null);
@@ -93,6 +95,7 @@ export default function SavedCodes() {
   function startEditTemplate(t:SavedTemplate) { setEditTplId(t.id);setEditTplLabel(t.label);setEditTplText(t.template_text);setEditTplThumb(t.thumbnail_image_url||''); }
   async function saveEditTemplate() { if(!editTplId||!editTplLabel.trim())return; try{await updateSavedTemplate(editTplId,{label:editTplLabel.trim(),template_text:editTplText,thumbnail_image_url:editTplThumb.trim()||undefined});setTemplates(p=>p.map(t=>t.id===editTplId?{...t,label:editTplLabel.trim(),template_text:editTplText,thumbnail_image_url:editTplThumb.trim()||undefined}:t));setEditTplId(null);}catch(e){} }
   async function handleDeleteCode(id:string) { if(!confirm('Delete?'))return; try{await deleteMVCode(id);setCodes(p=>p.filter(c=>c.id!==id));}catch(e){} }
+  async function handleSaveCodeName(id: string) { if(!editCodeNameValue.trim()) return; try { await updateMVCode(id, { routine_name: editCodeNameValue.trim() }); setCodes(p=>p.map(c=>c.id===id?{...c,routine_name:editCodeNameValue.trim()}:c)); setEditCodeNameId(null); } catch(e){ console.error(e); } }
 
   async function handleSaveVimeoId(codeId: string) {
     let vid = vimeoIdInput.trim();
@@ -279,9 +282,20 @@ export default function SavedCodes() {
           </div>)}
           {codes.length>0?codes.map((code,idx)=>(
             <div key={code.id} draggable={selectMode!=='codes'} onDragStart={()=>codeDrag.onDragStart(idx)} onDragEnter={()=>codeDrag.onDragEnter(idx)} onDragEnd={codeDrag.onDragEnd} onDragOver={e=>e.preventDefault()} className={`bg-white rounded-xl border border-gray-200 overflow-hidden ${selectMode!=='codes'?'cursor-grab active:cursor-grabbing':''} hover:shadow-sm transition-shadow`}>
-              <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" onClick={()=>selectMode==='codes'?toggleSelect(code.id):toggleItem('code-'+code.id)}>
+              <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" onClick={()=>selectMode==='codes'?toggleSelect(code.id):editCodeNameId===code.id?null:toggleItem('code-'+code.id)}>
                 {selectMode==='codes'?<div className="flex-shrink-0">{selectedIds.has(code.id)?<CheckSquare className="w-5 h-5 text-crimson"/>:<Square className="w-5 h-5 text-gray-300"/>}</div>:<GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0"/>}
-                <span className="font-bold text-navy text-sm flex-1 truncate">{code.routine_name}</span>
+                {editCodeNameId===code.id ? (
+                  <div className="flex-1 flex items-center gap-1.5" onClick={e=>e.stopPropagation()}>
+                    <input type="text" value={editCodeNameValue} onChange={e=>setEditCodeNameValue(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleSaveCodeName(code.id);if(e.key==='Escape')setEditCodeNameId(null);}} className="flex-1 px-2 py-1 rounded border-2 border-navy text-sm font-bold focus:outline-none" autoFocus/>
+                    <button onClick={()=>handleSaveCodeName(code.id)} className="text-xs font-bold text-teal cursor-pointer bg-transparent border-none p-0"><Check className="w-4 h-4"/></button>
+                    <button onClick={()=>setEditCodeNameId(null)} className="text-xs font-bold text-gray-400 cursor-pointer bg-transparent border-none p-0"><X className="w-4 h-4"/></button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="font-bold text-navy text-sm flex-1 truncate">{code.routine_name}</span>
+                    <button onClick={e=>{e.stopPropagation();setEditCodeNameId(code.id);setEditCodeNameValue(code.routine_name);}} className="text-gray-300 hover:text-navy cursor-pointer bg-transparent border-none p-0 flex-shrink-0"><Pencil className="w-3.5 h-3.5"/></button>
+                  </>
+                )}
                 <span className="text-xs text-gray-400 flex-shrink-0">{code.exercise_count} ex · ~{code.duration_minutes}m</span>
                 <button onClick={e=>{e.stopPropagation();doCopy(code.mv_code,code.id,'mv');}} className="text-xs font-bold text-white bg-gradient-to-r from-navy to-crimson px-2.5 py-1 rounded cursor-pointer border-none flex-shrink-0">{copiedId===code.id+'mv'?'✓':'MV'}</button>
                 <ChevronRight className={`w-4 h-4 text-gray-300 flex-shrink-0 transition-transform ${openItemId==='code-'+code.id?'rotate-90':''}`}/>
@@ -304,7 +318,7 @@ export default function SavedCodes() {
                   <div className="flex gap-3 flex-wrap items-center">
                     {code.video_url&&<button onClick={()=>doCopy(code.video_url!,code.id,'vid')} className="text-xs font-bold text-teal cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'vid'?'✓':'Video URL'}</button>}
                     {code.thumbnail_image_url&&<button onClick={()=>doCopy(code.thumbnail_image_url!,code.id,'img')} className="text-xs font-bold text-purple-600 cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'img'?'✓':'Overlay URL'}</button>}
-                    {code.generated_thumbnail_url&&<a href={code.generated_thumbnail_url} download target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-orange-600 no-underline">↓ Thumbnail PNG</a>}
+                    {code.generated_thumbnail_url&&<button onClick={()=>doCopy(code.generated_thumbnail_url!,code.id,'thumb')} className="text-xs font-bold text-orange-600 cursor-pointer bg-transparent border-none p-0">{copiedId===code.id+'thumb'?'✓ Copied':'Copy Thumbnail URL'}</button>}
                     <button onClick={()=>togglePreview(code.id,'mv')} className="text-xs font-bold text-purple-700 cursor-pointer bg-transparent border-none p-0 flex items-center gap-0.5">{previewId===code.id&&previewType==='mv'?<ChevronUp className="w-3 h-3"/>:<ChevronDown className="w-3 h-3"/>}Preview</button>
                     <button onClick={()=>handleDeleteCode(code.id)} className="text-xs font-bold text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><Trash2 className="w-3 h-3"/></button>
                   </div>
@@ -381,6 +395,12 @@ export default function SavedCodes() {
                       {copiedId==='vid-'+job.id+'mvc' ? <><Check className="w-4 h-4 text-teal"/> Copied!</> : <><Code className="w-4 h-4"/> Copy MV Embed Code</>}
                     </button>
                   ) : null; })()}
+                  {/* Copy Thumbnail URL */}
+                  {job.thumbnail_url && (
+                    <button onClick={()=>doCopy(job.thumbnail_url,'vid-'+job.id,'thumburl')} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg font-bold text-xs text-orange-600 border border-orange-200 bg-white hover:bg-orange-50 cursor-pointer min-h-[36px]">
+                      {copiedId==='vid-'+job.id+'thumburl' ? <><Check className="w-3.5 h-3.5 text-teal"/> Copied!</> : <><Image className="w-3.5 h-3.5"/> Copy Thumbnail URL</>}
+                    </button>
+                  )}
                   {/* Download MP4 */}
                   {job.output_url && (
                     <a href={job.output_url} target="_blank" rel="noopener" className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-navy to-crimson no-underline min-h-[40px]">
