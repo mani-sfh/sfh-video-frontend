@@ -267,7 +267,7 @@ export async function deleteMVCode(id: string) {
   if (error) throw error;
 }
 
-export async function updateMVCode(id: string, data: { sort_order?: number; mv_code?: string; vimeo_id?: string; video_url?: string }) {
+export async function updateMVCode(id: string, data: { sort_order?: number; mv_code?: string; vimeo_id?: string; video_url?: string; routine_name?: string; generated_thumbnail_url?: string }) {
   const { error } = await supabase
     .from('mv_codes')
     .update(data)
