@@ -136,10 +136,18 @@ export async function deleteVideoJob(jobId: string) {
 }
 
 export async function cleanupVideoStorage(jobId: string) {
+  // Get the job to find actual file paths
+  const { data: job } = await supabase.from('video_jobs').select('output_url, thumbnail_url').eq('id', jobId).single();
   // Delete MP4 from storage
-  await supabase.storage.from('videos').remove([`generated-videos/routine_${jobId}.mp4`]);
+  if (job?.output_url) {
+    const videoPath = job.output_url.split('/videos/').pop();
+    if (videoPath) await supabase.storage.from('videos').remove([videoPath]);
+  }
   // Delete thumbnail PNG from storage
-  await supabase.storage.from('videos').remove([`generated-thumbnails/thumbnail_${jobId}.png`]);
+  if (job?.thumbnail_url) {
+    const thumbPath = job.thumbnail_url.split('/videos/').pop();
+    if (thumbPath) await supabase.storage.from('videos').remove([thumbPath]);
+  }
   // Clear URLs from the database row (keep the row itself)
   const { error } = await supabase
     .from('video_jobs')
@@ -206,6 +214,27 @@ export async function generateRoutineVideo(params: {
   }
 
   return response.json();
+}
+
+export async function generateThumbnailOnly(params: {
+  routineName: string;
+  totalDuration?: string;
+  thumbnailImageUrl?: string;
+  thumbnailBadge?: string;
+  thumbnailTitle?: string;
+  resolution?: string;
+}): Promise<{ thumbnailUrl: string; filename: string }> {
+  const response = await fetch(`${railwayUrl}/api/thumbnail/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Thumbnail generation failed: ${response.status} — ${text}`);
+  }
+  const data = await response.json();
+  return { thumbnailUrl: data.thumbnailUrl, filename: data.filename };
 }
 
 // ── MV Codes Storage ──
