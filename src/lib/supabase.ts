@@ -119,7 +119,7 @@ export async function getRecentVideoJobs(limit = 20) {
   return data || [];
 }
 
-export async function updateVideoJob(jobId: string, updates: { vimeo_id?: string; vimeo_url?: string }) {
+export async function updateVideoJob(jobId: string, updates: { vimeo_id?: string; vimeo_url?: string; folder?: string | null }) {
   const { error } = await supabase
     .from('video_jobs')
     .update(updates)
@@ -253,6 +253,7 @@ export interface MVCode {
   generated_thumbnail_url?: string;
   vimeo_id?: string;
   sort_order?: number;
+  folder?: string | null;
   created_at: string;
 }
 
@@ -296,7 +297,7 @@ export async function deleteMVCode(id: string) {
   if (error) throw error;
 }
 
-export async function updateMVCode(id: string, data: { sort_order?: number; mv_code?: string; vimeo_id?: string; video_url?: string; routine_name?: string; generated_thumbnail_url?: string }) {
+export async function updateMVCode(id: string, data: { sort_order?: number; mv_code?: string; vimeo_id?: string; video_url?: string; routine_name?: string; generated_thumbnail_url?: string; folder?: string | null }) {
   const { error } = await supabase
     .from('mv_codes')
     .update(data)
@@ -311,6 +312,7 @@ export interface ThumbnailImage {
   label: string;
   image_url: string;
   sort_order?: number;
+  folder?: string | null;
   created_at: string;
 }
 
@@ -324,7 +326,7 @@ export async function saveThumbnailImage(data: { label: string; image_url: strin
   return result;
 }
 
-export async function updateThumbnailImage(id: string, data: { label?: string; image_url?: string; sort_order?: number }) {
+export async function updateThumbnailImage(id: string, data: { label?: string; image_url?: string; sort_order?: number; folder?: string | null }) {
   const { error } = await supabase
     .from('thumbnail_images')
     .update(data)
@@ -359,6 +361,7 @@ export interface SavedTemplate {
   exercise_count?: number;
   thumbnail_image_url?: string;
   sort_order?: number;
+  folder?: string | null;
   created_at: string;
 }
 
@@ -390,7 +393,7 @@ export async function deleteSavedTemplate(id: string) {
   if (error) throw error;
 }
 
-export async function updateSavedTemplate(id: string, data: { label?: string; template_text?: string; thumbnail_image_url?: string; sort_order?: number }) {
+export async function updateSavedTemplate(id: string, data: { label?: string; template_text?: string; thumbnail_image_url?: string; sort_order?: number; folder?: string | null }) {
   const { error } = await supabase
     .from('saved_templates')
     .update(data)
