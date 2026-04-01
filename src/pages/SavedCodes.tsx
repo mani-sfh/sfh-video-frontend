@@ -131,6 +131,11 @@ export default function SavedCodes() {
     exitSelectMode();
   }
 
+  async function bulkDeleteImages() { if(!confirm(`Delete ${selectedIds.size} image(s)?`)) return; for(const id of selectedIds){ try{await deleteThumbnailImage(id);}catch(e){} } setThumbImages(p=>p.filter(i=>!selectedIds.has(i.id))); exitSelectMode(); }
+  async function bulkDeleteTemplates() { if(!confirm(`Delete ${selectedIds.size} template(s)?`)) return; for(const id of selectedIds){ try{await deleteSavedTemplate(id);}catch(e){} } setTemplates(p=>p.filter(t=>!selectedIds.has(t.id))); exitSelectMode(); }
+  async function bulkDeleteCodes() { if(!confirm(`Delete ${selectedIds.size} code(s)?`)) return; for(const id of selectedIds){ try{await deleteMVCode(id);}catch(e){} } setCodes(p=>p.filter(c=>!selectedIds.has(c.id))); exitSelectMode(); }
+  async function bulkDeleteVideos() { if(!confirm(`Delete ${selectedIds.size} video(s)?`)) return; for(const id of selectedIds){ try{await deleteVideoJob(id);}catch(e){console.error('Delete failed:',id,e);} } setVideoJobs(p=>p.filter(j=>!selectedIds.has(j.id))); exitSelectMode(); }
+
   function FolderBar({ section, items }: { section: string; items: {folder?:string|null}[] }) {
     const folders = getFolders(items);
     if (items.length === 0) return null;
