@@ -354,7 +354,7 @@ export interface SavedTemplate {
   label: string;
   template_text: string;
   exercise_count?: number;
-  thumbnail_image_url?: string;
+  thumbnail_image_url?: string | null;
   sort_order?: number;
   folder?: string | null;
   created_at: string;
@@ -388,7 +388,7 @@ export async function deleteSavedTemplate(id: string) {
   if (error) throw error;
 }
 
-export async function updateSavedTemplate(id: string, data: { label?: string; template_text?: string; thumbnail_image_url?: string; sort_order?: number; folder?: string | null }) {
+export async function updateSavedTemplate(id: string, data: { label?: string; template_text?: string; thumbnail_image_url?: string | null; sort_order?: number; folder?: string | null }) {
   const { error } = await supabase
     .from('saved_templates')
     .update(data)
