@@ -571,10 +571,10 @@ export default function SavedCodes() {
                       </div>
                     </div>
                   )}
-                  {/* Remove from Storage (only when on Vimeo and files still exist) */}
+                  {/* Remove MP4 from Storage (only when on Vimeo and MP4 still exists) */}
                   {job.vimeo_id && job.output_url && (
-                    <button onClick={async ()=>{ if(!confirm('Remove MP4 and thumbnail from storage? The video will stay on Vimeo.'))return; try{await cleanupVideoStorage(job.id);setVideoJobs(p=>p.map(j=>j.id===job.id?{...j,output_url:null,thumbnail_url:null}:j));}catch(e){console.error(e);alert('Cleanup failed: '+(e as Error).message);} }} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg font-bold text-xs text-orange-500 hover:bg-orange-50 cursor-pointer border border-orange-200 bg-white min-h-[36px]">
-                      <Trash2 className="w-3.5 h-3.5"/> Remove from Storage (~{job.file_size_mb ? job.file_size_mb.toFixed(0) : '35'} MB)
+                    <button onClick={async ()=>{ if(!confirm('Remove MP4 from storage? Thumbnail and Vimeo link will be kept.'))return; try{await cleanupVideoStorage(job.id);setVideoJobs(p=>p.map(j=>j.id===job.id?{...j,output_url:null}:j));}catch(e){console.error(e);alert('Cleanup failed: '+(e as Error).message);} }} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg font-bold text-xs text-orange-500 hover:bg-orange-50 cursor-pointer border border-orange-200 bg-white min-h-[36px]">
+                      <Trash2 className="w-3.5 h-3.5"/> Remove MP4 from Storage (~{job.file_size_mb ? job.file_size_mb.toFixed(0) : '35'} MB)
                     </button>
                   )}
                   {/* Delete */}
