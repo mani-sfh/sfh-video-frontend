@@ -42,8 +42,6 @@ export default function Builder() {
     isDownloading: boolean; mvCopySuccess: boolean; copiedVimeoField: string | null; mvCodeSaved: boolean; savedMvCodeId: string | null;
   }>>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [pillsPos, setPillsPos] = useState<{ x: number; y: number } | null>(null);
-  const pillsDrag = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const pollingIntervals = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const [selectedResolution, setSelectedResolution] = useState<'720p' | '1080p'>('720p');
   const [showResolutionModal, setShowResolutionModal] = useState(false);
@@ -368,23 +366,28 @@ export default function Builder() {
                 <span className="flex items-center gap-1 font-semibold text-gray-500"><ListChecks className="w-4 h-4 text-teal" />{playlist.length}</span>
                 <span className="flex items-center gap-1 font-semibold text-gray-500"><Clock className="w-4 h-4 text-teal" />~{getTotalTime()} min</span>
               </div>
-            </div>
-            <div className="space-y-2 overflow-y-auto mb-4 pr-1 flex-1 min-h-0">
-              {playlist.map((ex, i) => (<PlaylistItem key={ex.id} exercise={ex} index={i} onRemove={removeFromPlaylist} onMoveUp={() => moveItem(i, -1)} onMoveDown={() => moveItem(i, 1)} isFirst={i === 0} isLast={i === playlist.length - 1} />))}
-            </div>
-            <div className="space-y-2 flex-shrink-0">
-              <button onClick={handleGenerateVideo} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg transition-all cursor-pointer border-none min-h-[44px]"><Video className="w-5 h-5" /> Generate Video</button>
-              <button onClick={handleGenerateThumbnail} disabled={generatingThumb || !routineName.trim()} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border-2 border-orange-400 text-orange-600 hover:bg-orange-50 transition-all cursor-pointer bg-white min-h-[44px] disabled:opacity-50">{generatingThumb ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Image className="w-4 h-4" /> Generate Thumbnail</>}</button>
+              {/* Action buttons - always visible at top */}
+              <div className="flex gap-2 mb-3 flex-shrink-0">
+                <button onClick={handleGenerateVideo} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-navy to-crimson hover:shadow-lg cursor-pointer border-none min-h-[44px]"><Video className="w-4 h-4" /> Generate Video</button>
+                <button onClick={handleGenerateThumbnail} disabled={generatingThumb || !routineName.trim()} className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-sm border-2 border-orange-400 text-orange-600 hover:bg-orange-50 cursor-pointer bg-white min-h-[44px] disabled:opacity-50">{generatingThumb ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}</button>
+              </div>
               {generatedThumbUrl && (
-                <div className="w-full bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2">
-                  <img src={generatedThumbUrl} alt="Thumbnail" className="w-full rounded-lg" />
-                  <button onClick={() => { navigator.clipboard.writeText(generatedThumbUrl); setThumbCopied(true); setTimeout(() => setThumbCopied(false), 2000); }} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs text-orange-600 border border-orange-300 bg-white hover:bg-orange-50 cursor-pointer min-h-[36px]">{thumbCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Thumbnail URL</>}</button>
+                <div className="w-full bg-orange-50 border border-orange-200 rounded-xl p-2 mb-3 flex-shrink-0">
+                  <img src={generatedThumbUrl} alt="Thumbnail" className="w-full rounded-lg mb-1.5" />
+                  <button onClick={() => { navigator.clipboard.writeText(generatedThumbUrl); setThumbCopied(true); setTimeout(() => setThumbCopied(false), 2000); }} className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-bold text-xs text-orange-600 border border-orange-300 bg-white hover:bg-orange-50 cursor-pointer">{thumbCopied ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy Thumbnail URL</>}</button>
                 </div>
               )}
-              <button onClick={exportJSON} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border-2 border-teal text-teal hover:bg-teal/5 transition-all cursor-pointer bg-white min-h-[44px]"><Download className="w-4 h-4" /> Export JSON</button>
-              <button onClick={handleSave} disabled={saving || !routineName.trim()} className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-2 min-h-[44px] ${!routineName.trim() ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-navy text-navy hover:bg-navy/5 bg-white'}`}><Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save to Library'}</button>
-              <button onClick={exportTemplate} disabled={playlist.length === 0} className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-2 min-h-[44px] ${playlist.length === 0 ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-crimson text-crimson hover:bg-crimson/5 bg-white'}`}><FileText className="w-4 h-4" /> Export Template</button>
-              <button onClick={handleCopyMVCode} disabled={playlist.length === 0} className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-2 min-h-[44px] ${playlist.length === 0 ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-purple-700 text-purple-700 hover:bg-purple-50 bg-white'}`}><Code className="w-4 h-4" /> {mvCopySuccess ? 'Copied!' : 'Copy MV Code'}</button>
+            </div>
+            <div className="space-y-2 overflow-y-auto mb-3 pr-1 flex-1 min-h-0">
+              {playlist.map((ex, i) => (<PlaylistItem key={ex.id} exercise={ex} index={i} onRemove={removeFromPlaylist} onMoveUp={() => moveItem(i, -1)} onMoveDown={() => moveItem(i, 1)} isFirst={i === 0} isLast={i === playlist.length - 1} />))}
+            </div>
+            <div className="space-y-1.5 flex-shrink-0 border-t border-gray-100 pt-2">
+              <div className="flex gap-1.5">
+                <button onClick={exportJSON} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold text-xs border border-teal text-teal hover:bg-teal/5 cursor-pointer bg-white"><Download className="w-3.5 h-3.5" /> JSON</button>
+                <button onClick={exportTemplate} disabled={playlist.length === 0} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold text-xs border cursor-pointer bg-white ${playlist.length === 0 ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-crimson text-crimson hover:bg-crimson/5'}`}><FileText className="w-3.5 h-3.5" /> Template</button>
+                <button onClick={handleCopyMVCode} disabled={playlist.length === 0} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold text-xs border cursor-pointer bg-white ${playlist.length === 0 ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-purple-700 text-purple-700 hover:bg-purple-50'}`}><Code className="w-3.5 h-3.5" /> {mvCopySuccess ? '✓' : 'MV'}</button>
+              </div>
+              <button onClick={handleSave} disabled={saving || !routineName.trim()} className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold text-xs cursor-pointer border ${!routineName.trim() ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-navy text-navy hover:bg-navy/5 bg-white'}`}><Save className="w-3.5 h-3.5" /> {saving ? 'Saving...' : 'Save to Library'}</button>
             </div>
           </>)}
         </div>
@@ -392,63 +395,31 @@ export default function Builder() {
 
       {showStoryboard && <VideoStoryboard playlist={playlist} routineName={routineName || 'Custom Routine'} totalDuration={`~${getTotalTime()} minutes`} equipment={templateData?.equipment} subtitle={templateData?.subtitle} level={templateData?.level} condition={templateData?.condition} thumbnailImageUrl={thumbnailImageUrl} thumbnailBadge={thumbnailBadge} thumbnailTitle={thumbnailTitle} onApprove={handleStoryboardApprove} onClose={() => setShowStoryboard(false)} />}
 
-      {/* Minimized job pills — draggable container */}
+      {/* Minimized job pills — fixed top-right below header */}
       {videoJobs.filter(j => j.minimized || j.id !== activeJobId).length > 0 && (
-        <div className="fixed z-50" style={{ right: pillsPos ? undefined : 16, bottom: pillsPos ? undefined : 16, left: pillsPos ? pillsPos.x : undefined, top: pillsPos ? pillsPos.y : undefined }}
-          onMouseDown={(e) => {
-            if ((e.target as HTMLElement).closest('button')) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            pillsDrag.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top };
-            const onMove = (ev: MouseEvent) => {
-              if (!pillsDrag.current) return;
-              const dx = ev.clientX - pillsDrag.current.startX;
-              const dy = ev.clientY - pillsDrag.current.startY;
-              setPillsPos({ x: pillsDrag.current.origX + dx, y: pillsDrag.current.origY + dy });
-            };
-            const onUp = () => { pillsDrag.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
-          }}
-          onTouchStart={(e) => {
-            if ((e.target as HTMLElement).closest('button')) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const t = e.touches[0];
-            pillsDrag.current = { startX: t.clientX, startY: t.clientY, origX: rect.left, origY: rect.top };
-            const onMove = (ev: TouchEvent) => {
-              if (!pillsDrag.current) return;
-              const dx = ev.touches[0].clientX - pillsDrag.current.startX;
-              const dy = ev.touches[0].clientY - pillsDrag.current.startY;
-              setPillsPos({ x: pillsDrag.current.origX + dx, y: pillsDrag.current.origY + dy });
-            };
-            const onEnd = () => { pillsDrag.current = null; window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd); };
-            window.addEventListener('touchmove', onMove);
-            window.addEventListener('touchend', onEnd);
-          }}
-        >
-          <div className="flex flex-col gap-2 cursor-move">
-            {videoJobs.filter(j => j.minimized || j.id !== activeJobId).length > 1 && (
-              <button onClick={() => { setVideoJobs(prev => prev.filter(j => j.status === 'pending' || j.status === 'processing')); setActiveJobId(null); }} className="text-xs font-bold text-gray-400 hover:text-red-500 cursor-pointer bg-white/90 border border-gray-200 rounded-lg px-3 py-1.5 self-end mb-1 backdrop-blur-sm">Clear All</button>
-            )}
-            {videoJobs.filter(j => j.minimized || j.id !== activeJobId).map((j) => (
-              <div key={j.id} className="cursor-pointer" onClick={() => { updateJob(j.id, { minimized: false }); setActiveJobId(j.id); }}>
-                <div className="bg-white rounded-xl shadow-2xl border-2 border-navy/20 p-3 flex items-center gap-3 min-w-[280px] hover:shadow-lg transition-shadow">
-                  {(j.status === 'pending' || j.status === 'processing') ? (<>
-                    <Loader2 className="w-5 h-5 animate-spin text-crimson flex-shrink-0" />
-                    <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><div className="w-full h-1.5 bg-gray-200 rounded-full mt-1"><div className="h-full bg-crimson rounded-full transition-all" style={{ width: `${j.progress}%` }}></div></div></div>
-                    <span className="text-xs font-bold text-navy flex-shrink-0">{j.progress}%</span>
-                  </>) : j.status === 'completed' ? (<>
-                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                    <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-green-600 font-semibold m-0">Ready — click to open</p></div>
-                  </>) : j.status === 'failed' ? (<>
-                    <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                    <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-red-500 font-semibold m-0">Failed</p></div>
-                  </>) : null}
-                  <Maximize2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  {(j.status !== 'pending' && j.status !== 'processing') && <button onClick={(e) => { e.stopPropagation(); closeJob(j.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><X className="w-4 h-4" /></button>}
-                </div>
+        <div className="fixed z-50 top-16 right-4 flex flex-col gap-2 max-h-[calc(100vh-80px)] overflow-y-auto">
+          {videoJobs.filter(j => j.minimized || j.id !== activeJobId).length > 1 && (
+            <button onClick={() => { setVideoJobs(prev => prev.filter(j => j.status === 'pending' || j.status === 'processing')); setActiveJobId(null); }} className="text-xs font-bold text-gray-400 hover:text-red-500 cursor-pointer bg-white/95 border border-gray-200 rounded-lg px-3 py-1.5 self-end backdrop-blur-sm shadow-sm">Clear All</button>
+          )}
+          {videoJobs.filter(j => j.minimized || j.id !== activeJobId).map((j) => (
+            <div key={j.id} className="cursor-pointer" onClick={() => { updateJob(j.id, { minimized: false }); setActiveJobId(j.id); }}>
+              <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-navy/15 p-3 flex items-center gap-3 min-w-[260px] max-w-[300px] hover:shadow-xl transition-shadow">
+                {(j.status === 'pending' || j.status === 'processing') ? (<>
+                  <Loader2 className="w-5 h-5 animate-spin text-crimson flex-shrink-0" />
+                  <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><div className="w-full h-1.5 bg-gray-200 rounded-full mt-1"><div className="h-full bg-crimson rounded-full transition-all" style={{ width: `${j.progress}%` }}></div></div></div>
+                  <span className="text-xs font-bold text-navy flex-shrink-0">{j.progress}%</span>
+                </>) : j.status === 'completed' ? (<>
+                  <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-green-600 font-semibold m-0">Ready — click to open</p></div>
+                </>) : j.status === 'failed' ? (<>
+                  <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0"><p className="text-sm font-bold text-navy truncate m-0">{j.routineName}</p><p className="text-xs text-red-500 font-semibold m-0">Failed</p></div>
+                </>) : null}
+                <Maximize2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                {(j.status !== 'pending' && j.status !== 'processing') && <button onClick={(e) => { e.stopPropagation(); closeJob(j.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none p-0"><X className="w-4 h-4" /></button>}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
 
