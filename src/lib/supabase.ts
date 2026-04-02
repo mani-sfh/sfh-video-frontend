@@ -232,6 +232,19 @@ export async function generateThumbnailOnly(params: {
   return { thumbnailUrl: data.thumbnailUrl, filename: data.filename };
 }
 
+export async function uploadThumbnailToVimeo(vimeoId: string, thumbnailUrl: string): Promise<{ success: boolean }> {
+  const response = await fetch(`${railwayUrl}/api/vimeo/set-thumbnail`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vimeoId, thumbnailUrl }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Vimeo thumbnail failed: ${response.status} — ${text}`);
+  }
+  return response.json();
+}
+
 // ── MV Codes Storage ──
 
 export interface MVCode {
