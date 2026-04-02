@@ -8,9 +8,10 @@ interface TemplateModalProps {
   onLoad: () => void;
   onClose: () => void;
   savedTemplates?: SavedTemplate[];
+  onPickSavedTemplate?: (template: SavedTemplate) => void;
 }
 
-export default function TemplateModal({ templateText, onTemplateTextChange, onLoad, onClose, savedTemplates = [] }: TemplateModalProps) {
+export default function TemplateModal({ templateText, onTemplateTextChange, onLoad, onClose, savedTemplates = [], onPickSavedTemplate }: TemplateModalProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
 
@@ -18,6 +19,7 @@ export default function TemplateModal({ templateText, onTemplateTextChange, onLo
 
   function handlePick(template: SavedTemplate) {
     onTemplateTextChange(template.template_text);
+    if (onPickSavedTemplate) onPickSavedTemplate(template);
     setShowPicker(false);
     setPickerSearch('');
   }
