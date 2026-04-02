@@ -44,6 +44,7 @@ export default function Builder() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [pillsPos, setPillsPos] = useState<{ x: number; y: number } | null>(null);
   const pillsDrag = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const wasDragged = useRef(false);
   const pollingIntervals = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const [selectedResolution, setSelectedResolution] = useState<'720p' | '1080p'>('720p');
   const [showResolutionModal, setShowResolutionModal] = useState(false);
@@ -404,8 +405,10 @@ export default function Builder() {
             if ((e.target as HTMLElement).closest('button')) return;
             const rect = e.currentTarget.getBoundingClientRect();
             pillsDrag.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top };
+            wasDragged.current = false;
             const onMove = (ev: MouseEvent) => {
               if (!pillsDrag.current) return;
+              wasDragged.current = true;
               setPillsPos({ x: pillsDrag.current.origX + (ev.clientX - pillsDrag.current.startX), y: pillsDrag.current.origY + (ev.clientY - pillsDrag.current.startY) });
             };
             const onUp = () => { pillsDrag.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
@@ -417,8 +420,10 @@ export default function Builder() {
             const rect = e.currentTarget.getBoundingClientRect();
             const t = e.touches[0];
             pillsDrag.current = { startX: t.clientX, startY: t.clientY, origX: rect.left, origY: rect.top };
+            wasDragged.current = false;
             const onMove = (ev: TouchEvent) => {
               if (!pillsDrag.current) return;
+              wasDragged.current = true;
               setPillsPos({ x: pillsDrag.current.origX + (ev.touches[0].clientX - pillsDrag.current.startX), y: pillsDrag.current.origY + (ev.touches[0].clientY - pillsDrag.current.startY) });
             };
             const onEnd = () => { pillsDrag.current = null; window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd); };
@@ -431,7 +436,7 @@ export default function Builder() {
               <button onClick={() => { setVideoJobs(prev => prev.filter(j => j.status === 'pending' || j.status === 'processing')); setActiveJobId(null); }} className="text-xs font-bold text-gray-400 hover:text-red-500 cursor-pointer bg-white/95 border border-gray-200 rounded-lg px-3 py-1.5 self-end backdrop-blur-sm shadow-sm">Clear All</button>
             )}
             {videoJobs.filter(j => j.minimized || j.id !== activeJobId).map((j) => (
-              <div key={j.id} className="cursor-pointer" onClick={() => { updateJob(j.id, { minimized: false }); setActiveJobId(j.id); }}>
+              <div key={j.id} className="cursor-pointer" onClick={() => { if (wasDragged.current) { wasDragged.current = false; return; } updateJob(j.id, { minimized: false }); setActiveJobId(j.id); }}>
                 <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-navy/15 p-3 flex items-center gap-3 min-w-[260px] max-w-[300px] hover:shadow-xl transition-shadow">
                   {(j.status === 'pending' || j.status === 'processing') ? (<>
                     <Loader2 className="w-5 h-5 animate-spin text-crimson flex-shrink-0" />
