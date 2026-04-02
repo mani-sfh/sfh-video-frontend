@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, deleteVideoJob, cleanupVideoStorage, uploadToVimeo, generateThumbnailOnly } from '../lib/supabase';
+import { getMVCodes, deleteMVCode, updateMVCode, getThumbnailImages, saveThumbnailImage, deleteThumbnailImage, updateThumbnailImage, getSavedTemplates, deleteSavedTemplate, updateSavedTemplate, saveTemplate, getRecentVideoJobs, updateVideoJob, deleteVideoJob, cleanupVideoStorage, uploadToVimeo, generateThumbnailOnly, uploadThumbnailToVimeo } from '../lib/supabase';
 import type { MVCode, ThumbnailImage, SavedTemplate } from '../lib/supabase';
 import { Code, Trash2, Clock, ListChecks, Copy, FileText, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, ImagePlus, Image, Pencil, Check, X, GripVertical, Plus, Play, Download, Upload, Video, Loader2, ExternalLink, CheckSquare, Square, FolderOpen } from 'lucide-react';
 
@@ -64,6 +64,7 @@ export default function SavedCodes() {
   const [editCodeNameValue, setEditCodeNameValue] = useState('');
   const [generatingThumbId, setGeneratingThumbId] = useState<string | null>(null);
   const [generatedThumbUrls, setGeneratedThumbUrls] = useState<Record<string, string>>({});
+  const [uploadingThumbToVimeoId, setUploadingThumbToVimeoId] = useState<string | null>(null);
 
   // Multi-select
   const [selectMode, setSelectMode] = useState<'images'|'templates'|'codes'|'videos'|null>(null);
@@ -457,7 +458,23 @@ export default function SavedCodes() {
                   {(generatedThumbUrls[code.id] || code.generated_thumbnail_url) && (
                     <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 mb-2">
                       <img src={generatedThumbUrls[code.id] || code.generated_thumbnail_url!} alt="Thumbnail" className="w-full max-w-xs rounded-lg mb-2" />
-                      <button onClick={()=>doCopy(generatedThumbUrls[code.id] || code.generated_thumbnail_url!,code.id,'thumb')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs text-orange-600 border border-orange-300 bg-white hover:bg-orange-50 cursor-pointer">{copiedId===code.id+'thumb'?<><Check className="w-3 h-3"/>Copied!</>:<><Copy className="w-3 h-3"/>Copy Thumbnail URL</>}</button>
+                      <div className="flex gap-2 flex-wrap">
+                        <button onClick={()=>doCopy(generatedThumbUrls[code.id] || code.generated_thumbnail_url!,code.id,'thumb')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs text-orange-600 border border-orange-300 bg-white hover:bg-orange-50 cursor-pointer">{copiedId===code.id+'thumb'?<><Check className="w-3 h-3"/>Copied!</>:<><Copy className="w-3 h-3"/>Copy Thumbnail URL</>}</button>
+                        {code.vimeo_id && (
+                          <button onClick={async ()=>{
+                            const thumbUrl = generatedThumbUrls[code.id] || code.generated_thumbnail_url;
+                            if(!thumbUrl) return;
+                            setUploadingThumbToVimeoId(code.id);
+                            try {
+                              await uploadThumbnailToVimeo(code.vimeo_id!, thumbUrl);
+                              alert('Thumbnail uploaded to Vimeo!');
+                            } catch(e){ alert('Failed: '+(e as Error).message); }
+                            finally { setUploadingThumbToVimeoId(null); }
+                          }} disabled={uploadingThumbToVimeoId===code.id} className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs text-white bg-teal hover:bg-teal/90 cursor-pointer border-none disabled:opacity-50">
+                            {uploadingThumbToVimeoId===code.id ? <><Loader2 className="w-3 h-3 animate-spin"/>Uploading...</> : <><Upload className="w-3 h-3"/>Upload to Vimeo</>}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                   <div className="flex gap-3 flex-wrap items-center">
